@@ -1,0 +1,25 @@
+# saia-python configuration
+# Copy to config.toml and adjust values.
+# This file is safe to commit (no secrets — those go in .env).
+
+[saia]
+# Your Academic Cloud username (the owner prefix in ARCANA IDs)
+username = "your-username"
+
+# Override the default base URL (optional)
+# base_url = "https://chat-ai.academiccloud.de/v1"
+
+[saia.arcana]
+# Default ARCANA ID for RAG chat (owner/name format)
+default = "your-username/My-Arcana-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# List of ARCANA IDs (indexed as "0", "1", "2", ...)
+ids = [
+    "your-username/First-Arcana-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "your-username/Second-Arcana-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+]
+
+# Named labels for quick access
+[saia.arcana.labels]
+project_a = "your-username/ProjectA-Arcana-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+project_b = "your-username/ProjectB-Arcana-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"

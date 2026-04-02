@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "saia-python"
+version = "0.1.0"
+description = "Python wrapper for the GWDG SAIA platform REST API"
+requires-python = ">=3.10"
+license = "AGPL-3.0"
+authors = [
+    {name = "Friedrich Schwarz"},
+]
+dependencies = [
+    "requests>=2.28",
+    "tqdm>=4.60",
+    "openai>=1.0",
+    "tomlkit>=0.12",
+]
+
+[project.urls]
+Repository = "https://github.com/fschwar4/saia_python"
+
+[tool.setuptools.packages.find]
+include = ["saia_python*"]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+]
+docs = [
+    "sphinx>=7.0",
+    "pydata-sphinx-theme>=0.15",
+    "sphinx-design",
+    "sphinx-copybutton",
+    "myst-parser",
+]
+dev = [
+    "saia-python[test,docs]",
+    "jupyter",
+]
