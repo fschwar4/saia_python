@@ -5,15 +5,14 @@ from __future__ import annotations
 import json
 import uuid as _uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Generator, Optional
+from typing import Generator, Optional
 from urllib.parse import quote
+
+import requests
 
 from ._streaming import iter_sse
 from .exceptions import APIError, raise_for_status
 from .rate_limits import parse_rate_limits
-
-if TYPE_CHECKING:
-    import requests
 
 _ARCANA_PATH = "/arcanas/api/v1"
 
@@ -648,22 +647,30 @@ class ArcanaService:
             threading.Thread(target=_fire, daemon=True).start()
             return None
 
-        # Synchronous: fire the request, tolerate timeout/504, then poll
+        # Synchronous: fire the request, tolerate transport-level failures, then poll
         try:
             resp = self._session.post(url, headers=self._headers(), timeout=30)
             raise_for_status(resp)
-        except Exception as e:
-            # 504 from nginx or ReadTimeout from requests both mean
-            # the server accepted the job but the connection was cut.
-            # Any other error is a real failure — re-raise it.
-            err_str = str(e).lower()
-            is_timeout = "504" in err_str or "timed out" in err_str or "timeout" in err_str
-            if not is_timeout:
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+            # The trigger almost certainly reached the server (the body
+            # was written before the response was dropped). ARCANA
+            # commonly holds the trigger connection while it builds the
+            # embedding queue, then closes it without a response. The
+            # arcana state machine is authoritative — fall through to
+            # the poll loop. Sanity-check with a GET first: if that
+            # also fails at the transport level, the server is
+            # genuinely down and the error propagates.
+            self.get(name)
+        except APIError as e:
+            # 504 Gateway Timeout from nginx is the same shape: trigger
+            # accepted, gateway gave up waiting for a response.
+            if e.status_code != 504:
                 raise
 
         # Poll until indexing finishes
         deadline = time.monotonic() + timeout
         terminal = {"INDEXED", "ERROR", "NOT_INDEXED"}
+        status = ""
 
         while time.monotonic() < deadline:
             time.sleep(poll_interval)
