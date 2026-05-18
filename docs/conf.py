@@ -140,5 +140,5 @@ def linkcode_resolve(domain, info):
 
 
 # -- CHANGELOG integration ---------------------------------------------------
-# If a CHANGELOG.md exists at the repo root, it will be included via
-# myst-parser through docs/changelog.md (a symlink or copy).
+# docs/CHANGELOG.md is rendered directly via myst-parser and linked
+# from the toctree in docs/index.rst.

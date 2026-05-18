@@ -83,3 +83,4 @@ of Biological Networks (CIDBN) <https://uni-goettingen.de/de/608362.html>`_.
    explanations
    api/index
    development
+   CHANGELOG
