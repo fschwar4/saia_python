@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `ArcanaService.setup_from_directory()` docstring no longer breaks
+  the docs build under `sphinx-build -W`. The multi-line ``…`` inline
+  literal in the original Returns: block is not valid RST and produced
+  `"Inline literal start-string without end-string"`. Rewrote the
+  Returns: block to describe the three-key dict semantically (using
+  ``:meth:`` cross-references to :meth:`create`,
+  :meth:`upload_directory`, and :meth:`generate_index`) — same
+  information, valid RST.
+
+### Changed
+
+- CI: bump `actions/checkout@v4 → @v5` and
+  `actions/setup-python@v5 → @v6` across both the docs and tests
+  workflows. Addresses the Node.js 20 deprecation warning (Node 20
+  removed from GitHub runners September 2026).
+
 ## [0.1.2] — 2026-05-22
 
 ### Added
