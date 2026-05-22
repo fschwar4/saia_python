@@ -213,5 +213,52 @@ class SAIAClient:
         except Exception:
             return False
 
+    def health_check(self, *, verbose: bool = False) -> bool | dict:
+        """Verify that the client can reach the API and authenticate.
+
+        Combines two cheap GETs:
+
+        - ``GET /models`` (authenticated) — confirms the API key resolves
+          and the chat backend is reachable.
+        - ``GET /arcanas/api/v1/heartbeat`` (cheap 204) — confirms the
+          ARCANA backend is reachable.
+
+        Args:
+            verbose: If ``True``, return a diagnostic dict instead of a
+                bool. Useful in onboarding / setup scripts where you
+                want to surface *which* leg failed.
+
+        Returns:
+            ``True`` if both legs succeed, ``False`` otherwise. With
+            ``verbose=True``, a dict::
+
+                {
+                    "ok":            <bool>,
+                    "base_url":      <str>,
+                    "models_ok":     <bool>,
+                    "model_count":   <int>,    # 0 if models leg failed
+                    "arcana_ok":     <bool>,
+                    "error":         <str|None>,  # first leg that failed
+                }
+        """
+        details: dict = {
+            "base_url": self._base_url,
+            "models_ok": False,
+            "model_count": 0,
+            "arcana_ok": False,
+            "error": None,
+        }
+        try:
+            model_ids = self.models.list_ids()
+            details["models_ok"] = True
+            details["model_count"] = len(model_ids)
+        except Exception as exc:
+            details["error"] = f"models: {exc}"
+        details["arcana_ok"] = self.arcana_heartbeat()
+        if not details["arcana_ok"] and details["error"] is None:
+            details["error"] = "arcana heartbeat returned non-204"
+        details["ok"] = details["models_ok"] and details["arcana_ok"]
+        return details if verbose else bool(details["ok"])
+
     def __repr__(self):
         return f"SAIAClient(base_url={self._base_url!r})"

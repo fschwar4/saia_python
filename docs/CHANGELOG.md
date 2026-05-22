@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-05-22
+
+### Added
+
+- `SAIAClient.health_check(verbose=False)` — verify connectivity *and*
+  authentication in one call. Combines the existing
+  `arcana_heartbeat()` (cheap 204 GET) with an authenticated
+  `models.list_ids()` so callers can distinguish "service down" from
+  "auth failed". Returns a bool by default; `verbose=True` returns a
+  diagnostic dict (`ok`, `base_url`, `models_ok`, `model_count`,
+  `arcana_ok`, `error`) suitable for surfacing in onboarding scripts.
+- `saia_python.text_of(response)` — module-level helper that extracts
+  the first choice's assistant content from an OpenAI-style response
+  dict (the shape returned by both `ChatService.completions` and
+  `ArcanaService.chat`). Empty `choices` lists and missing/`None`
+  `content` fields return `""` with a logged warning so silent
+  regressions surface in logs.
+- `ArcanaService.setup_from_directory(name, source_dir, ...)` —
+  end-to-end convenience that composes `create()`,
+  `upload_directory()`, and `generate_index()` into a single call.
+  Returns `{"arcana": <create-result>, "uploads": <list>,
+  "index": <index-result>}` so callers can inspect any step. Uses the
+  UUID-suffixed name from `create()` for the upload + index calls so
+  the composition stays correct without the caller having to remember
+  the renaming.
+- Test coverage for all three additions:
+  `tests/test_health_check.py` (6 tests), `tests/test_responses.py`
+  (6 tests), `tests/test_setup_from_directory.py` (3 tests). Suite is
+  network-free; HTTP / SDK calls are mocked.
+
 ## [0.1.1] — 2026-05-18
 
 ### Fixed
@@ -62,6 +92,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   resolution with owner-prefix handling.
 - Sphinx documentation (PyData theme) and a unit test suite.
 
-[Unreleased]: https://github.com/fschwar4/saia_python/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/fschwar4/saia_python/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/fschwar4/saia_python/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/fschwar4/saia_python/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/fschwar4/saia_python/releases/tag/v0.1.0

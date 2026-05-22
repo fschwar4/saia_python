@@ -707,6 +707,90 @@ class ArcanaService:
         except (json.JSONDecodeError, ValueError):
             return None
 
+    def setup_from_directory(
+        self,
+        name: str,
+        source_dir: str | Path,
+        *,
+        pattern: str = "*.md",
+        append_uuid: bool = True,
+        update_toml: bool = False,
+        toml_label: str | None = None,
+        wait_for_index: bool = True,
+        index_timeout: int = 600,
+        verbose: bool = True,
+    ) -> dict:
+        """End-to-end: create an arcana, upload a directory, build the index.
+
+        Composes :meth:`create`, :meth:`upload_directory`, and
+        :meth:`generate_index` into a single call. The arcana name
+        passed to upload + index is the one returned by ``create`` —
+        i.e. with the UUID suffix when ``append_uuid=True`` (default),
+        so the composition stays correct without the caller having to
+        remember the renaming.
+
+        Args:
+            name: Display name for the new arcana (UUID suffix appended
+                when ``append_uuid=True``).
+            source_dir: Directory whose matching files should be
+                uploaded to the new arcana.
+            pattern: Glob pattern passed to :meth:`upload_directory`.
+                Defaults to ``"*.md"``.
+            append_uuid: Forwarded to :meth:`create`. If ``True``
+                (default), the UUID suffix avoids name collisions and
+                mirrors the SAIA web UI behaviour.
+            update_toml: Forwarded to :meth:`create`. If ``True``, add
+                the new arcana to ``config.toml`` after creation.
+            toml_label: Label under ``[saia.arcana.labels]``.
+                Ignored when ``update_toml`` is ``False``.
+            wait_for_index: Forwarded to :meth:`generate_index` as
+                ``wait``. If ``True`` (default), block until the index
+                reaches ``INDEXED`` (or fails / times out).
+            index_timeout: Forwarded to :meth:`generate_index` as
+                ``timeout`` (seconds). Defaults to 600.
+            verbose: Forwarded to :meth:`upload_directory`. Controls
+                the per-file progress bar.
+
+        Returns:
+            ``{"arcana": <create-result>, "uploads": <list>,
+            "index": <generate-index-result>}`` — the three component
+            responses, so callers can inspect any step.
+
+        Example::
+
+            result = client.arcana.setup_from_directory(
+                "MyKB", "./markdown/",
+                pattern="**/*.md",
+                update_toml=True, toml_label="my_kb",
+            )
+            print(result["arcana"]["id"])     # owner/MyKB-<uuid>
+            print(len(result["uploads"]))     # files uploaded
+            print(result["index"])            # index_status
+        """
+        create_result = self.create(
+            name,
+            append_uuid=append_uuid,
+            update_toml=update_toml,
+            toml_label=toml_label,
+        )
+        arcana_name = create_result["name"]
+        uploads = self.upload_directory(
+            arcana_name,
+            source_dir,
+            pattern=pattern,
+            verbose=verbose,
+        )
+        index = self.generate_index(
+            arcana_name,
+            wait=wait_for_index,
+            timeout=index_timeout,
+        )
+        return {
+            "arcana": create_result,
+            "uploads": uploads,
+            "index": index,
+        }
+
     def chat(
         self,
         model: str,

@@ -30,6 +30,7 @@ from .documents import ConversionResult
 from .openai_compat import create_openai_client
 from .exceptions import APIError, AuthenticationError, RateLimitError, SAIAError
 from .rate_limits import RateLimitInfo, parse_rate_limits
+from .responses import text_of
 
 try:
     __version__ = version("saia-python")
@@ -58,6 +59,8 @@ __all__ = [
     # Rate limits
     "RateLimitInfo",
     "parse_rate_limits",
+    # Response helpers
+    "text_of",
     # Functional API
     "list_models",
     "list_model_ids",

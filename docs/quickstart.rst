@@ -92,6 +92,12 @@ OOP Interface
 
    client = SAIAClient()
 
+   # Connectivity + auth check (combines /models GET with the ARCANA
+   # heartbeat). Returns bool by default; verbose=True returns a
+   # diagnostic dict listing which leg succeeded/failed.
+   client.health_check()
+   client.health_check(verbose=True)
+
    # Models
    client.models.list_ids()
 
@@ -133,11 +139,29 @@ OOP Interface
    client.arcana.generate_index(arcana_ids["default"])
    client.arcana.delete_index(arcana_ids["default"])
 
-   client.arcana.chat(
+   # End-to-end: create a new arcana, upload a directory, build the
+   # index — one call. The UUID-suffixed name from create() flows
+   # through to upload + index automatically.
+   result = client.arcana.setup_from_directory(
+       "MyKB", "./markdown/",
+       pattern="**/*.md",
+       update_toml=True, toml_label="my_kb",
+   )
+   print(result["arcana"]["id"])      # owner/MyKB-<uuid>
+   print(len(result["uploads"]))      # number of files uploaded
+   print(result["index"])             # final index status
+
+   response = client.arcana.chat(
        model="llama-3.3-70b-instruct",
        messages=[{"role": "user", "content": "Summarize the document."}],
        arcana_id=arcana_ids["default"],
    )
+
+   # Pull the assistant text out of any chat / arcana response.
+   # Safe against empty `choices` and missing `content` fields —
+   # returns "" + logs a warning rather than raising.
+   from saia_python import text_of
+   print(text_of(response))
 
    # Rate limits
    print(client.get_rate_limits())

@@ -21,6 +21,7 @@ Services
    documents
    models
    rate_limits
+   responses
 
 Configuration & Auth
 --------------------
