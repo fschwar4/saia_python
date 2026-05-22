@@ -752,9 +752,11 @@ class ArcanaService:
                 the per-file progress bar.
 
         Returns:
-            ``{"arcana": <create-result>, "uploads": <list>,
-            "index": <generate-index-result>}`` — the three component
-            responses, so callers can inspect any step.
+            A dict with three keys: ``"arcana"`` (the result from
+            :meth:`create`), ``"uploads"`` (the list from
+            :meth:`upload_directory`), and ``"index"`` (the result
+            from :meth:`generate_index`). Callers can inspect any
+            step.
 
         Example::
 
