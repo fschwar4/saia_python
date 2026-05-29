@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generator, Optional
+from typing import TYPE_CHECKING, Optional
 
-from ._streaming import iter_sse
+from ._streaming import SSEStream
 from .exceptions import raise_for_status
 from .rate_limits import parse_rate_limits
 
@@ -34,7 +34,7 @@ class ChatService:
         max_tokens: Optional[int] = None,
         stream: bool = False,
         **kwargs,
-    ) -> dict | Generator[dict, None, None]:
+    ) -> dict | SSEStream:
         """Send a chat completion request.
 
         Args:
@@ -47,7 +47,12 @@ class ChatService:
             **kwargs: Additional parameters forwarded to the API.
 
         Returns:
-            The API response dict, or a generator if ``stream=True``.
+            When ``stream=False``: the API response dict, with an extra
+            ``"_rate_limits"`` key — a JSON-serializable dict of the current
+            rate-limit headers (see :class:`~saia_python.RateLimitInfo`).
+            When ``stream=True``: an ``SSEStream`` — iterate it for the
+            response chunks; its ``rate_limits`` attribute exposes the same
+            dict (available immediately, from the response headers).
         """
         body = {"model": model, "messages": messages, **kwargs}
         if temperature is not None:
@@ -65,7 +70,7 @@ class ChatService:
                 headers={"Accept": "text/event-stream"},
                 stream=True,
             )
-            return iter_sse(resp)
+            return SSEStream(resp)
 
         resp = self._session.post(
             f"{self._base_url}/chat/completions",
@@ -73,7 +78,10 @@ class ChatService:
         )
         raise_for_status(resp)
         result = resp.json()
-        result["_rate_limits"] = parse_rate_limits(resp.headers)
+        # Convenience: surface the rate-limit headers on the response under a
+        # ``_rate_limits`` key as a plain, JSON-serializable dict (so the whole
+        # response can still be ``json.dumps``-ed).
+        result["_rate_limits"] = parse_rate_limits(resp.headers).to_dict()
         return result
 
     def __repr__(self):

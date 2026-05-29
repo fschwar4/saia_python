@@ -61,9 +61,6 @@ Inherent limitations of ``.env``:
 The ``config.toml`` file stores structured, non-secret configuration. TOML
 provides native support for typed values, arrays, and nested tables.
 
-Python 3.11+ includes ``tomllib`` in the standard library. For Python 3.10,
-install the ``tomli`` backport (``pip install tomli``).
-
 .. code-block:: toml
 
    [saia]

@@ -142,3 +142,49 @@ class TestGenerateIndexTransportErrors:
         svc._session.get.return_value = _get_response("PENDING")
         with pytest.raises(TimeoutError, match="did not complete"):
             svc.generate_index("my-arcana", poll_interval=0, timeout=0)
+
+
+def test_generate_index_wait_false_uses_dedicated_session(monkeypatch):
+    """wait=False fires the trigger on its OWN Session (not the shared one)
+    and closes it, so it never races the caller's polling get()s."""
+    import threading
+
+    svc = _make_service()
+    created_sessions = []
+
+    class _FakeSession:
+        def __init__(self):
+            created_sessions.append(self)
+            self.posted = False
+            self.closed = False
+
+        def post(self, *args, **kwargs):
+            self.posted = True
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.ok = True
+            return resp
+
+        def close(self):
+            self.closed = True
+
+    class _SyncThread:
+        """Run the worker synchronously so the test is deterministic."""
+
+        def __init__(self, target=None, daemon=None):
+            self._target = target
+
+        def start(self):
+            self._target()
+
+    monkeypatch.setattr(requests, "Session", _FakeSession)
+    monkeypatch.setattr(threading, "Thread", _SyncThread)
+
+    result = svc.generate_index("my-arcana", wait=False)
+
+    assert result is None
+    assert len(created_sessions) == 1
+    assert created_sessions[0].posted is True
+    assert created_sessions[0].closed is True
+    # The shared client Session was NOT used for the background trigger.
+    svc._session.post.assert_not_called()

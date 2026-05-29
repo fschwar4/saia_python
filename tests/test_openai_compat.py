@@ -1,6 +1,10 @@
 """Tests for saia_python.openai_compat — OpenAI client factory."""
 
-import openai
+import pytest
+
+# The OpenAI compat layer is an optional extra; skip the whole module if the
+# 'openai' package isn't installed.
+openai = pytest.importorskip("openai")
 
 from saia_python.openai_compat import create_openai_client
 

@@ -32,6 +32,12 @@ ARCANA (RAG), and document conversion services.
 
       Local setup, testing, documentation builds, and release workflow.
 
+   .. grid-item-card:: Architecture Decisions
+      :link: adr/index
+      :link-type: doc
+
+      Records of significant design decisions (MADR format) and their rationale.
+
 
 Wrapped Services
 ----------------
@@ -83,4 +89,5 @@ of Biological Networks (CIDBN) <https://uni-goettingen.de/de/608362.html>`_.
    explanations
    api/index
    development
+   adr/index
    CHANGELOG

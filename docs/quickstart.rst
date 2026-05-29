@@ -12,8 +12,8 @@ Or install from source:
 
 .. code-block:: bash
 
-   git clone https://github.com/AvorMedicalIntelligence/saia-python.git
-   cd saia-python
+   git clone https://github.com/fschwar4/saia_python.git
+   cd saia_python
    pip install -e .
 
 
@@ -120,6 +120,11 @@ OOP Interface
    # Voice AI
    client.voice.transcribe("audio.wav", language="de")
    client.voice.translate("audio.wav")
+
+   # Non-blocking: wait=False returns a concurrent.futures.Future, so the
+   # call doesn't block. Resolve it later with .result() (re-raises errors).
+   future = client.voice.transcribe("audio.wav", wait=False)
+   transcript = future.result()
 
    # ARCANA (RAG)
    from saia_python import load_arcana_ids

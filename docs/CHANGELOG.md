@@ -7,8 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `VoiceService.transcribe()` / `translate()` with `wait=False` now return a
+  `concurrent.futures.Future[str]` (run on a dedicated background `Session`)
+  instead of discarding the result. Resolve with `.result()` (re-raises on
+  error), poll with `.done()`, or attach `.add_done_callback()`. New
+  `tests/test_voice.py`.
+- `RateLimitInfo.to_dict()` — a plain, JSON-serializable view of the parsed
+  rate-limit headers.
+- Optional `openai` extra (`pip install saia-python[openai]`). The `openai`
+  package is now imported lazily inside `create_openai_client()`, so the core
+  package installs and imports without it; using the OpenAI-compat layer
+  without the extra raises a clear `ImportError` with install instructions.
+- `SSEStream` — streaming chat / ARCANA calls now return an iterable wrapper
+  whose `.rate_limits` attribute exposes the rate-limit headers as a
+  JSON-serializable dict (parity with the non-streaming `_rate_limits` key).
+  Exported from the package; iterating it yields the same chunks as before.
+- Architecture Decision Records under `docs/adr/` (MADR format), linked from the
+  documentation: recording the ADR process itself, the optional `openai` extra,
+  rate-limit metadata exposure, `pyproject.toml` as the single source of
+  dependency truth, and non-blocking operations via Futures + dedicated Sessions.
+
+### Changed
+
+- `ModelsService.list()` now uses `GET /models` (was `POST`), matching the
+  OpenAI-compatible endpoint and the OpenAI SDK.
+- Non-streaming Chat and ARCANA responses attach `_rate_limits` as a plain,
+  JSON-serializable dict (was a `RateLimitInfo` instance) so the whole response
+  can be `json.dumps`-ed.
+- `ArcanaService.generate_index(wait=False)` fires the background trigger on its
+  own `requests.Session` (a `Session` is not safe to share across threads with
+  the caller's polling calls).
+- `SAIAClient.get_rate_limits()` now raises `AuthenticationError` on 401/403
+  instead of silently returning an empty `RateLimitInfo`.
+- `openai` moved from core dependencies to the optional `[openai]` extra; the
+  `test` extra pulls it in so CI is unaffected.
+- CI: bump `actions/checkout@v4 → @v5` and
+  `actions/setup-python@v5 → @v6` across both the docs and tests
+  workflows. Addresses the Node.js 20 deprecation warning (Node 20
+  removed from GitHub runners September 2026).
+
+### Removed
+
+- `requirements.txt` — `pyproject.toml` is the single source of truth for
+  dependencies. The file was incomplete (missing `openai`/`tomlkit`) and
+  referenced only by the README; CI installs via `pip install -e ".[test|docs]"`.
+
 ### Fixed
 
+- `iter_sse()` now closes the streaming response in a `finally` block (it
+  previously leaked the connection until garbage collection).
+- `load_api_key(path=...)` no longer mis-classifies a raw key containing `=`
+  (e.g. base64 padding) as dotenv, and no longer `IndexError`s on an empty
+  file: the dotenv form is tried first, then the first non-empty, non-comment
+  line.
+- Docs: corrected the clone URL to `github.com/fschwar4/saia_python`; removed an
+  inaccurate `tomllib`/`tomli` note from `configuration.rst` (the package parses
+  config with `tomlkit`); fixed the README repo-structure listing (dropped the
+  non-existent `backlog.md`, added `.env.example` and `CHANGELOG.md`).
+- Removed a dead `if not resp.ok` branch in `raise_for_status()` and a redundant
+  `.env` re-read in `_resolve_owner_prefix()`.
 - `ArcanaService.setup_from_directory()` docstring no longer breaks
   the docs build under `sphinx-build -W`. The multi-line ``…`` inline
   literal in the original Returns: block is not valid RST and produced
@@ -17,13 +76,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ``:meth:`` cross-references to :meth:`create`,
   :meth:`upload_directory`, and :meth:`generate_index`) — same
   information, valid RST.
-
-### Changed
-
-- CI: bump `actions/checkout@v4 → @v5` and
-  `actions/setup-python@v5 → @v6` across both the docs and tests
-  workflows. Addresses the Node.js 20 deprecation warning (Node 20
-  removed from GitHub runners September 2026).
 
 ## [0.1.2] — 2026-05-22
 

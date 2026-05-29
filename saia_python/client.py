@@ -174,8 +174,19 @@ class SAIAClient:
 
         Returns:
             Parsed :class:`RateLimitInfo`.
+
+        Raises:
+            AuthenticationError: If the API key is invalid or expired
+                (401/403). Other non-2xx statuses (notably the expected
+                400) are tolerated since they still carry the headers.
         """
         resp = self._session.get(f"{self._base_url}/chat/completions")
+        if resp.status_code in (401, 403):
+            # The probe is *expected* to 400 (missing request body) but still
+            # carries rate-limit headers. A 401/403 means the key is bad, so
+            # surface it instead of silently returning an empty RateLimitInfo.
+            from .exceptions import raise_for_status
+            raise_for_status(resp)
         return parse_rate_limits(resp.headers)
 
     def arcana_version(self) -> str:

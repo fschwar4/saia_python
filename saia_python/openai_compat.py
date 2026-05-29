@@ -11,8 +11,6 @@ from __future__ import annotations
 
 from typing import Optional
 
-import openai
-
 
 def create_openai_client(
     *,
@@ -57,6 +55,15 @@ def create_openai_client(
             input="Text to embed",
         )
     """
+    try:
+        import openai
+    except ImportError as exc:
+        raise ImportError(
+            "The OpenAI compatibility layer requires the optional 'openai' "
+            "dependency. Install it with:\n"
+            "    pip install saia-python[openai]"
+        ) from exc
+
     from .auth import load_api_key
     from .client import resolve_base_url
 

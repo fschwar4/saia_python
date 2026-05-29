@@ -28,7 +28,7 @@ class ModelsService:
         Returns:
             A list of model dicts, each containing at least an ``"id"`` key.
         """
-        resp = self._session.post(f"{self._base_url}/models")
+        resp = self._session.get(f"{self._base_url}/models")
         raise_for_status(resp)
         data = resp.json()
         if isinstance(data, list):

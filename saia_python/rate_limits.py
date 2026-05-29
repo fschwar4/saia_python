@@ -1,6 +1,6 @@
 """Rate limit header parsing for SAIA API responses."""
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Optional
 
 
@@ -17,6 +17,10 @@ class RateLimitInfo:
     remaining_day: Optional[int] = None
     remaining_month: Optional[int] = None
     reset_seconds: Optional[int] = None
+
+    def to_dict(self) -> dict:
+        """Return a plain, JSON-serializable dict of all rate-limit fields."""
+        return asdict(self)
 
     def __str__(self):
         rows = []

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from saia_python._streaming import iter_sse
+from saia_python._streaming import SSEStream, iter_sse
 from saia_python.exceptions import AuthenticationError
 
 
@@ -61,3 +61,32 @@ class TestIterSse:
         resp.text = "Unauthorized"
         with pytest.raises(AuthenticationError):
             list(iter_sse(resp))
+
+
+class TestSSEStream:
+
+    def test_exposes_rate_limits_and_chunks(self):
+        resp = _make_response([
+            'data: {"choices": [{"delta": {"content": "Hi"}}]}',
+            "data: [DONE]",
+        ])
+        resp.headers = {
+            "x-ratelimit-limit-minute": "30",
+            "x-ratelimit-remaining-minute": "29",
+        }
+        stream = SSEStream(resp)
+
+        # Rate limits available immediately, as a JSON-serializable dict.
+        assert stream.rate_limits["limit_minute"] == 30
+        assert stream.rate_limits["remaining_minute"] == 29
+
+        chunks = list(stream)
+        assert len(chunks) == 1
+        assert chunks[0]["choices"][0]["delta"]["content"] == "Hi"
+
+    def test_close_releases_response_even_if_not_iterated(self):
+        resp = _make_response(["data: [DONE]"])
+        resp.headers = {}
+        stream = SSEStream(resp)
+        stream.close()
+        resp.close.assert_called()

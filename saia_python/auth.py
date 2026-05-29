@@ -260,14 +260,22 @@ def load_api_key(path: str | Path | None = None) -> str:
 
 
 def _read_file(path: Path) -> str:
-    """Auto-detect format and read key from file."""
-    content = path.read_text(encoding="utf-8").strip()
-    if "=" in content:
-        dotenv = _parse_dotenv(path)
-        value = dotenv.get(_ENV_VAR)
-        if value:
-            return value
-    return content.splitlines()[0].strip()
+    """Read an API key from an explicit file path.
+
+    Accepts both supported formats: a ``.env``-style file (a
+    ``SAIA_API_KEY=...`` line) and a raw ``.saia_api`` file (the key on
+    its own line). The dotenv form wins when a ``SAIA_API_KEY`` entry is
+    present; otherwise the first non-empty, non-comment line is treated as
+    the raw key.
+
+    This replaces the previous "contains ``=``" heuristic, which mis-classified
+    raw keys that legitimately contain ``=`` (e.g. base64 padding) and raised
+    ``IndexError`` on an empty file.
+    """
+    value = _parse_dotenv(path).get(_ENV_VAR)
+    if value:
+        return value
+    return _read_raw(path)
 
 
 def _read_raw(path: Path) -> str:
@@ -367,17 +375,26 @@ def load_arcana_ids() -> dict[str, str]:
         result["default"] = default
 
     # --- Resolve owner prefix using username ---
-    result = _resolve_owner_prefix(result, config)
+    result = _resolve_owner_prefix(result, config, env_merged)
 
     return result
 
 
-def _resolve_owner_prefix(ids: dict[str, str], config: dict) -> dict[str, str]:
+def _resolve_owner_prefix(
+    ids: dict[str, str], config: dict, env_merged: dict[str, str]
+) -> dict[str, str]:
     """Prepend ``username/`` to ARCANA IDs that lack an owner prefix.
 
     The chat endpoint requires the ``owner/name`` format. If an ID has no
     ``/``, the username is resolved from ``SAIA_USERNAME`` (env, .env) or
     ``[saia] username`` in config.toml.
+
+    Args:
+        ids: The collected ARCANA IDs.
+        config: The parsed ``config.toml``.
+        env_merged: The already-merged ``{**dotenv, **os.environ}`` mapping
+            (env vars take precedence over ``.env``). Reused here to avoid
+            re-reading ``.env`` from disk.
 
     Raises:
         ValueError: If an ID has no ``/`` and no username is configured.
@@ -390,17 +407,11 @@ def _resolve_owner_prefix(ids: dict[str, str], config: dict) -> dict[str, str]:
     if not needs_prefix:
         return ids
 
-    # Resolve username
-    username = os.environ.get(_USERNAME_VAR, "").strip()
+    # Resolve username: env var / .env first (already merged), then config.toml
+    username = (env_merged.get(_USERNAME_VAR) or "").strip()
     if not username:
-        dotenv = _find_dotenv()
-        username = dotenv.get(_USERNAME_VAR, "").strip()
-    if not username:
-        username = config.get("saia", {}).get("username", "")
-        if isinstance(username, str):
-            username = username.strip()
-        else:
-            username = ""
+        cfg_username = config.get("saia", {}).get("username", "")
+        username = cfg_username.strip() if isinstance(cfg_username, str) else ""
 
     if not username:
         missing = [f"{k}={v}" for k, v in ids.items() if "/" not in v]

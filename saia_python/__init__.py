@@ -14,6 +14,7 @@ Provides both an object-oriented and a functional interface::
 
 from __future__ import annotations
 
+import concurrent.futures
 from importlib.metadata import PackageNotFoundError, version
 from typing import Optional
 
@@ -31,6 +32,7 @@ from .openai_compat import create_openai_client
 from .exceptions import APIError, AuthenticationError, RateLimitError, SAIAError
 from .rate_limits import RateLimitInfo, parse_rate_limits
 from .responses import text_of
+from ._streaming import SSEStream
 
 try:
     __version__ = version("saia-python")
@@ -61,6 +63,7 @@ __all__ = [
     "parse_rate_limits",
     # Response helpers
     "text_of",
+    "SSEStream",
     # Functional API
     "list_models",
     "list_model_ids",
@@ -115,10 +118,11 @@ def chat_completion(
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
     **kwargs,
-) -> dict:
+) -> dict | SSEStream:
     """Send a chat completion request (functional API).
 
-    See :meth:`ChatService.completions` for full parameter docs.
+    See :meth:`ChatService.completions` for full parameter docs. With
+    ``stream=True`` this returns an iterable ``SSEStream`` instead of a dict.
     """
     return _make_client(api_key, base_url).chat.completions(
         model=model, messages=messages, **kwargs
@@ -134,10 +138,12 @@ def transcribe(
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
     **kwargs,
-) -> str:
+) -> str | concurrent.futures.Future[str]:
     """Transcribe an audio file (functional API).
 
-    See :meth:`VoiceService.transcribe` for full parameter docs.
+    See :meth:`VoiceService.transcribe` for full parameter docs. Passing
+    ``wait=False`` returns a :class:`concurrent.futures.Future` instead of
+    the transcription string.
     """
     return _make_client(api_key, base_url).voice.transcribe(file_path, **kwargs)
 
@@ -148,10 +154,12 @@ def translate(
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
     **kwargs,
-) -> str:
+) -> str | concurrent.futures.Future[str]:
     """Translate an audio file to English (functional API).
 
-    See :meth:`VoiceService.translate` for full parameter docs.
+    See :meth:`VoiceService.translate` for full parameter docs. Passing
+    ``wait=False`` returns a :class:`concurrent.futures.Future` instead of
+    the translation string.
     """
     return _make_client(api_key, base_url).voice.translate(file_path, **kwargs)
 
@@ -192,8 +200,11 @@ def arcana_chat(
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
     **kwargs,
-) -> dict:
-    """Chat with RAG context from an arcana (functional API)."""
+) -> dict | SSEStream:
+    """Chat with RAG context from an arcana (functional API).
+
+    With ``stream=True`` this returns an iterable ``SSEStream`` instead of a dict.
+    """
     return _make_client(api_key, base_url).arcana.chat(
         model=model, messages=messages, arcana_id=arcana_id, **kwargs
     )

@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 import uuid as _uuid
 from pathlib import Path
-from typing import Generator, Optional
+from typing import Optional
 from urllib.parse import quote
 
 import requests
 
-from ._streaming import iter_sse
+from ._streaming import SSEStream
 from .exceptions import APIError, raise_for_status
 from .rate_limits import parse_rate_limits
 
@@ -636,13 +636,18 @@ class ArcanaService:
         url = f"{self._arcana_base}/arcana/{quote(resolved, safe='')}/generate-index"
 
         if not wait:
-            # Fire-and-forget: send the request in a background thread
-            # so we return to the caller immediately.
+            # Fire-and-forget: send the trigger on a background thread so we
+            # return to the caller immediately. It uses its OWN Session — the
+            # caller polls via info()/get() on the shared client Session, and
+            # requests.Session is not safe to use from two threads at once.
             def _fire():
+                session = requests.Session()
                 try:
-                    self._session.post(url, headers=self._headers(), timeout=600)
+                    session.post(url, headers=self._headers(), timeout=600)
                 except Exception:
                     pass  # indexing status is checked via info()/get()
+                finally:
+                    session.close()
 
             threading.Thread(target=_fire, daemon=True).start()
             return None
@@ -803,7 +808,7 @@ class ArcanaService:
         max_tokens: Optional[int] = None,
         stream: bool = False,
         **kwargs,
-    ) -> dict | Generator[dict, None, None]:
+    ) -> dict | SSEStream:
         """Chat with RAG context from an arcana.
 
         This uses the standard ``/chat/completions`` endpoint with arcana
@@ -817,7 +822,10 @@ class ArcanaService:
             **kwargs: Additional parameters forwarded to the API.
 
         Returns:
-            The API response dict, or a generator if ``stream=True``.
+            When ``stream=False``: the API response dict, with an extra
+            ``"_rate_limits"`` key (a JSON-serializable dict; see
+            :class:`~saia_python.RateLimitInfo`). When ``stream=True``: an
+            ``SSEStream`` whose ``rate_limits`` attribute exposes the same dict.
         """
         body = {
             "model": model,
@@ -846,7 +854,7 @@ class ArcanaService:
                 headers=headers,
                 stream=True,
             )
-            return iter_sse(resp)
+            return SSEStream(resp)
 
         resp = self._session.post(
             f"{self._base_url}/chat/completions",
@@ -855,7 +863,9 @@ class ArcanaService:
         )
         raise_for_status(resp)
         result = resp.json()
-        result["_rate_limits"] = parse_rate_limits(resp.headers)
+        # See ChatService.completions: a JSON-serializable rate-limit dict,
+        # attached on the non-streaming path only.
+        result["_rate_limits"] = parse_rate_limits(resp.headers).to_dict()
         return result
 
     def __repr__(self):

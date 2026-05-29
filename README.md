@@ -13,8 +13,8 @@ pip install saia-python
 Or from source:
 
 ```bash
-git clone https://github.com/AvorMedicalIntelligence/saia-python.git
-cd saia-python
+git clone https://github.com/fschwar4/saia_python.git
+cd saia_python
 pip install -e .
 ```
 
@@ -89,16 +89,16 @@ saia-python/
 │   ├── development.rst
 │   ├── dev_notes.rst
 │   ├── testing.rst
-│   └── roadmap.rst
+│   ├── roadmap.rst
+│   └── CHANGELOG.md
 ├── tests/                        # Unit tests
 ├── examples/
 │   ├── saia_python_demo.ipynb    # Interactive demo
-│   └── config.toml.example       # Template for structured config
+│   ├── config.toml.example       # Template for structured config
+│   └── .env.example              # Template for secrets (.env)
 ├── .github/workflows/            # CI/CD (tests + docs deployment)
 ├── pyproject.toml                # Package metadata + dependencies
-├── requirements.txt
 ├── .gitignore
-├── backlog.md
 └── README.md
 ```
 

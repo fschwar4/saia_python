@@ -63,5 +63,6 @@ def raise_for_status(resp: requests.Response) -> None:
         from .rate_limits import parse_rate_limits
 
         raise RateLimitError(detail, rate_limits=parse_rate_limits(resp.headers))
-    if not resp.ok:
-        raise APIError(detail, status_code=resp.status_code, response_body=resp.text)
+    # Any other non-2xx/3xx status. The early `return` above already handled
+    # the resp.ok case, so reaching here always means an error response.
+    raise APIError(detail, status_code=resp.status_code, response_body=resp.text)
