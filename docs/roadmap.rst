@@ -5,7 +5,7 @@ This roadmap outlines planned features for positioning ``saia-python`` as
 the foundational Python building block for the GWDG/KISSKI AI ecosystem.
 
 
-Ecosystem Integration (v0.2)
+Ecosystem Integration (v0.3)
 -----------------------------
 
 **LangChain integration** (``saia_python.langchain``):
@@ -28,7 +28,7 @@ Ecosystem Integration (v0.2)
   Currently undocumented in the library.
 
 
-Research Tooling (v0.3)
+Research Tooling (v0.4)
 ------------------------
 
 **Batch processing**:
