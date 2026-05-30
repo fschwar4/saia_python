@@ -25,6 +25,9 @@ _USERNAME_VAR = "SAIA_USERNAME"
 _ARCANA_ID_VAR = "SAIA_ARCANA_ID"
 _ARCANA_ID_PATTERN = re.compile(r"^SAIA_ARCANA_ID_(\w+)$")
 
+# The SAIA API base URL used when none is configured explicitly.
+DEFAULT_BASE_URL = "https://chat-ai.academiccloud.de/v1"
+
 
 def _search_dirs() -> list[Path]:
     """Return directories to search, evaluated at call time."""
@@ -463,3 +466,51 @@ def load_username() -> str | None:
         return value.strip()
 
     return None
+
+
+# ---------------------------------------------------------------------------
+# Base URL and credential resolution
+# ---------------------------------------------------------------------------
+
+
+def resolve_base_url(explicit: str | None = None) -> str:
+    """Resolve the SAIA API base URL.
+
+    Resolution order: explicit parameter > ``[saia] base_url`` in
+    ``config.toml`` > the hardcoded ``DEFAULT_BASE_URL``.
+
+    Args:
+        explicit: An explicit URL. If provided, returned as-is (trailing
+            slash stripped).
+
+    Returns:
+        The resolved base URL string.
+    """
+    if explicit is not None:
+        return explicit.rstrip("/")
+    config = load_config()
+    toml_url = config.get("saia", {}).get("base_url", "")
+    if isinstance(toml_url, str) and toml_url.strip():
+        return toml_url.strip().rstrip("/")
+    return DEFAULT_BASE_URL
+
+
+def resolve_credentials(
+    api_key: str | None = None,
+    base_url: str | None = None,
+    key_file: str | None = None,
+) -> tuple[str, str]:
+    """Resolve the API key and base URL from explicit values or discovery.
+
+    Shared by :class:`~saia_python.SAIAClient` and
+    :func:`~saia_python.create_openai_client` so both apply identical
+    resolution: an explicit ``api_key`` wins, otherwise it is discovered via
+    :func:`load_api_key` (honouring ``key_file``); the base URL is resolved via
+    :func:`resolve_base_url`.
+
+    Returns:
+        An ``(api_key, base_url)`` tuple.
+    """
+    resolved_key = api_key if api_key is not None else load_api_key(key_file)
+    resolved_url = resolve_base_url(base_url)
+    return resolved_key, resolved_url

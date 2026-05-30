@@ -19,14 +19,16 @@ from importlib.metadata import PackageNotFoundError, version
 from typing import Optional
 
 from .auth import (
+    DEFAULT_BASE_URL,
     add_arcana_to_config,
     load_api_key,
     load_arcana_ids,
     load_config,
     load_username,
     remove_arcana_from_config,
+    resolve_base_url,
 )
-from .client import DEFAULT_BASE_URL, SAIAClient, resolve_base_url
+from .client import SAIAClient
 from .documents import ConversionResult
 from .openai_compat import create_openai_client
 from .exceptions import APIError, AuthenticationError, RateLimitError, SAIAError

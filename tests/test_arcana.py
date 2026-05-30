@@ -13,6 +13,7 @@ def _make_service() -> ArcanaService:
     """Build an ArcanaService with a mocked session (no real HTTP)."""
     svc = ArcanaService.__new__(ArcanaService)
     svc._session = MagicMock()
+    svc._session.headers = {}  # real dict so new_session_like(...).headers.update works
     svc._base_url = "https://example.com/v1"
     svc._arcana_base = "https://example.com/v1/arcanas/api/v1"
     svc._api_key = "test"
@@ -155,6 +156,7 @@ def test_generate_index_wait_false_uses_dedicated_session(monkeypatch):
     class _FakeSession:
         def __init__(self):
             created_sessions.append(self)
+            self.headers = {}
             self.posted = False
             self.closed = False
 

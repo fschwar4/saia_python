@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ._util import progress_iter
 from .exceptions import raise_for_status
 
 if TYPE_CHECKING:
@@ -20,7 +21,7 @@ class ModelsService:
 
     def __init__(self, session: requests.Session, base_url: str):
         self._session = session
-        self._base_url = base_url.rstrip("/")
+        self._base_url = base_url
 
     def list_raw(self) -> dict:
         """Return the raw ``/models`` response envelope, as the API sent it.
@@ -108,17 +109,10 @@ class ModelsService:
         }]
         _PROBE_MESSAGES = [{"role": "user", "content": "Call the probe tool with x='test'."}]
 
-        try:
-            from tqdm.auto import tqdm
-        except ImportError:
-            tqdm = None
-
         capable = []
-        iterator = model_ids
-        if tqdm is not None and not verbose:
-            iterator = tqdm(model_ids, desc="Probing models", unit="model")
-
-        for mid in iterator:
+        for mid in progress_iter(
+            model_ids, desc="Probing models", unit="model", enabled=not verbose
+        ):
             try:
                 resp = self._session.post(
                     f"{self._base_url}/chat/completions",

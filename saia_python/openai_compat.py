@@ -30,7 +30,7 @@ def create_openai_client(
         api_key: Explicit API key. If omitted, resolved via
             :func:`~saia_python.load_api_key`.
         base_url: Explicit base URL. If omitted, resolved via
-            :func:`~saia_python.client.resolve_base_url`.
+            :func:`~saia_python.resolve_base_url`.
         key_file: Path to a ``.saia_api`` or ``.env`` file. Ignored
             when ``api_key`` is provided.
         async_client: If ``True``, return an ``openai.AsyncOpenAI``
@@ -64,11 +64,9 @@ def create_openai_client(
             "    pip install saia-python[openai]"
         ) from exc
 
-    from .auth import load_api_key
-    from .client import resolve_base_url
+    from .auth import resolve_credentials
 
-    resolved_key = api_key if api_key is not None else load_api_key(key_file)
-    resolved_url = resolve_base_url(base_url)
+    resolved_key, resolved_url = resolve_credentials(api_key, base_url, key_file)
 
     cls = openai.AsyncOpenAI if async_client else openai.OpenAI
     return cls(api_key=resolved_key, base_url=resolved_url)

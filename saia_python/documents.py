@@ -66,7 +66,7 @@ class DocumentService:
 
     def __init__(self, session: requests.Session, base_url: str):
         self._session = session
-        self._base_url = base_url.rstrip("/")
+        self._base_url = base_url
 
     def convert(
         self,

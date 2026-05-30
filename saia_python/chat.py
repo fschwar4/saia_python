@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
+from ._http import post_chat_completion
 from ._streaming import SSEStream
-from .exceptions import raise_for_status
-from .rate_limits import parse_rate_limits
 
 if TYPE_CHECKING:
     import requests
@@ -22,7 +21,7 @@ class ChatService:
 
     def __init__(self, session: requests.Session, base_url: str):
         self._session = session
-        self._base_url = base_url.rstrip("/")
+        self._base_url = base_url
 
     def completions(
         self,
@@ -62,27 +61,12 @@ class ChatService:
         if max_tokens is not None:
             body["max_tokens"] = max_tokens
 
-        if stream:
-            body["stream"] = True
-            resp = self._session.post(
-                f"{self._base_url}/chat/completions",
-                json=body,
-                headers={"Accept": "text/event-stream"},
-                stream=True,
-            )
-            return SSEStream(resp)
-
-        resp = self._session.post(
+        return post_chat_completion(
+            self._session,
             f"{self._base_url}/chat/completions",
-            json=body,
+            body,
+            stream=stream,
         )
-        raise_for_status(resp)
-        result = resp.json()
-        # Convenience: surface the rate-limit headers on the response under a
-        # ``_rate_limits`` key as a plain, JSON-serializable dict (so the whole
-        # response can still be ``json.dumps``-ed).
-        result["_rate_limits"] = parse_rate_limits(resp.headers).to_dict()
-        return result
 
     def __repr__(self):
         return f"ChatService(base_url={self._base_url!r})"

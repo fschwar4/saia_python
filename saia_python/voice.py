@@ -5,11 +5,13 @@ from __future__ import annotations
 import concurrent.futures
 import threading
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-import requests
-
+from ._http import new_session_like
 from .exceptions import raise_for_status
+
+if TYPE_CHECKING:
+    import requests
 
 
 class VoiceService:
@@ -22,7 +24,7 @@ class VoiceService:
 
     def __init__(self, session: requests.Session, base_url: str):
         self._session = session
-        self._base_url = base_url.rstrip("/")
+        self._base_url = base_url
 
     def transcribe(
         self,
@@ -107,11 +109,11 @@ class VoiceService:
 
         Backgrounded requests (``wait=False``) use their own Session so they
         never share the client's Session — and its connection pool — across
-        threads. ``requests.Session`` is not guaranteed thread-safe.
+        threads (``requests.Session`` is not guaranteed thread-safe). Thin
+        wrapper around :func:`saia_python._http.new_session_like` so the
+        "fresh authed background Session" idiom has a single implementation.
         """
-        session = requests.Session()
-        session.headers.update(self._session.headers)
-        return session
+        return new_session_like(self._session)
 
     def _audio_request(
         self,

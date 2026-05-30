@@ -5,6 +5,8 @@ from __future__ import annotations
 import json as _json
 from typing import TYPE_CHECKING
 
+from .rate_limits import parse_rate_limits
+
 if TYPE_CHECKING:
     import requests
 
@@ -60,8 +62,6 @@ def raise_for_status(resp: requests.Response) -> None:
     if resp.status_code in (401, 403):
         raise AuthenticationError(detail)
     if resp.status_code == 429:
-        from .rate_limits import parse_rate_limits
-
         raise RateLimitError(detail, rate_limits=parse_rate_limits(resp.headers))
     # Any other non-2xx/3xx status. The early `return` above already handled
     # the resp.ok case, so reaching here always means an error response.

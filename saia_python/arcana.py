@@ -10,9 +10,10 @@ from urllib.parse import quote
 
 import requests
 
+from ._http import new_session_like, post_chat_completion
 from ._streaming import SSEStream
+from ._util import progress_iter
 from .exceptions import APIError, raise_for_status
-from .rate_limits import parse_rate_limits
 
 _ARCANA_PATH = "/arcanas/api/v1"
 
@@ -36,6 +37,19 @@ def extract_arcana_name(id_or_name: str) -> str:
     return id_or_name
 
 
+def _json_or_none(resp) -> "dict | None":
+    """Return ``resp.json()``, or ``None`` when the body is empty / not JSON.
+
+    Several ARCANA management endpoints (delete, upload, delete-index, …) may
+    answer with an empty or non-JSON body on success; this collapses the
+    repeated decode-or-``None`` ``try/except`` they all used.
+    """
+    try:
+        return resp.json()
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+
 class ArcanaService:
     """Access the ARCANA/RAG endpoints.
 
@@ -50,12 +64,119 @@ class ArcanaService:
 
     def __init__(self, session: requests.Session, base_url: str, api_key: str):
         self._session = session
-        self._base_url = base_url.rstrip("/")
+        self._base_url = base_url
         self._arcana_base = f"{self._base_url}{_ARCANA_PATH}"
         self._api_key = api_key
 
     def _headers(self, **extra) -> dict:
         return {"Authorization": self._api_key, "Accept": "application/json", **extra}
+
+    @staticmethod
+    def _format_arcana_line(a: dict, *, with_owner: bool = False) -> str:
+        """Format one arcana as a one-line summary (shared by the summary views)."""
+        idx = a.get("index_info") or {}
+        status = idx.get("index_status", "?")
+        if with_owner:
+            return (
+                f"  {a['name']}  "
+                f"(owner: {a.get('owner_user_name', '?')}, "
+                f"files: {a.get('file_count', '?')}, "
+                f"status: {status})"
+            )
+        return (
+            f"  {a['name']}  "
+            f"(files: {a.get('file_count', '?')}, status: {status})"
+        )
+
+    @staticmethod
+    def _glob_files(
+        directory: str | Path, pattern: str, *, recursive: bool
+    ) -> list[Path]:
+        """Return the sorted matching files in ``directory``.
+
+        Raises:
+            FileNotFoundError: If ``directory`` is not a directory, or nothing
+                matches ``pattern``.
+        """
+        directory = Path(directory)
+        if not directory.is_dir():
+            raise FileNotFoundError(f"Directory not found: {directory}")
+        glob_method = directory.rglob if recursive else directory.glob
+        files = sorted(p for p in glob_method(pattern) if p.is_file())
+        if not files:
+            raise FileNotFoundError(f"No files matching '{pattern}' in {directory}")
+        return files
+
+    def _run_file_batch(
+        self,
+        files: list[Path],
+        action,
+        *,
+        verb: str,
+        desc: str,
+        verbose: bool,
+    ) -> list[dict]:
+        """Run ``action(path)`` over each file, tallying per-file status.
+
+        The shared skeleton behind :meth:`upload_directory` and
+        :meth:`delete_directory`: an optionally tqdm-wrapped loop that records
+        a ``{"file", "status", ["error"]}`` dict per item and prints a tally
+        when ``verbose``. Only the per-file ``action`` and the past-tense
+        ``verb`` (``"uploaded"`` / ``"deleted"``) differ between callers.
+        """
+        results = []
+        for fp in progress_iter(files, desc=desc, unit="file"):
+            entry: dict = {"file": fp.name}
+            try:
+                action(fp)
+                entry["status"] = verb
+            except Exception as e:
+                entry["status"] = "failed"
+                entry["error"] = str(e)
+            if verbose:
+                label = verb.capitalize() if entry["status"] == verb else "FAILED"
+                print(f"  {fp.name}  {label}")
+            results.append(entry)
+
+        succeeded = sum(1 for r in results if r["status"] == verb)
+        failed = len(results) - succeeded
+        summary = f"{succeeded}/{len(results)} files {verb}"
+        if failed:
+            summary += f" ({failed} failed)"
+        if verbose:
+            print(summary)
+        return results
+
+    def version(self) -> str:
+        """Return the ARCANA API version string.
+
+        Calls ``GET /arcanas/api/v1/version``.
+
+        Returns:
+            The version string (e.g. ``"0.4.16"``).
+        """
+        resp = self._session.get(
+            f"{self._arcana_base}/version", headers=self._headers()
+        )
+        raise_for_status(resp)
+        return resp.json().get("version", "")
+
+    def heartbeat(self) -> bool:
+        """Check whether the ARCANA service is alive.
+
+        Calls ``GET /arcanas/api/v1/heartbeat``. Returns ``True`` if the
+        service responds with 204, ``False`` otherwise (including transport
+        errors — it never raises).
+        """
+        try:
+            resp = self._session.get(
+                f"{self._arcana_base}/heartbeat",
+                headers=self._headers(),
+                timeout=10,
+            )
+            return resp.status_code == 204
+        except Exception:
+            return False
 
     def user_info(self) -> dict:
         """Return the current user's profile and arcana statistics.
@@ -99,12 +220,7 @@ class ArcanaService:
 
         lines.append(f"\nArcanas ({len(arcanas)}):")
         for a in arcanas:
-            idx = a.get("index_info") or {}
-            status = idx.get("index_status", "?")
-            lines.append(
-                f"  {a['name']}  "
-                f"(files: {a.get('file_count', '?')}, status: {status})"
-            )
+            lines.append(self._format_arcana_line(a))
         if not arcanas:
             lines.append("  (none)")
 
@@ -193,10 +309,7 @@ class ArcanaService:
             if full_id != name:
                 remove_arcana_from_config(name)
 
-        try:
-            return resp.json()
-        except (json.JSONDecodeError, ValueError):
-            return None
+        return _json_or_none(resp)
 
     def list(self) -> list[dict]:
         """List all available arcanas.
@@ -237,7 +350,7 @@ class ArcanaService:
             lines.append(f"Configured ARCANA IDs ({len(arcana_ids)}):")
             default_id = arcana_ids.get("default", "")
             if default_id:
-                name_part = default_id.split("/", 1)[1] if "/" in default_id else default_id
+                name_part = extract_arcana_name(default_id)
                 lines.append(f"  Default ID    {default_id}")
                 lines.append(f"  Default name  {name_part}")
             for label, aid in arcana_ids.items():
@@ -251,14 +364,7 @@ class ArcanaService:
         lines.append(f"\nAvailable on server ({len(arcanas)}):")
         if arcanas:
             for a in arcanas:
-                idx = a.get("index_info") or {}
-                status = idx.get("index_status", "?")
-                lines.append(
-                    f"  {a['name']}  "
-                    f"(owner: {a.get('owner_user_name', '?')}, "
-                    f"files: {a.get('file_count', '?')}, "
-                    f"status: {status})"
-                )
+                lines.append(self._format_arcana_line(a, with_owner=True))
         else:
             lines.append("  (none)")
 
@@ -372,10 +478,7 @@ class ArcanaService:
                     files={"file": (file_path.name, f)},
                 )
         raise_for_status(resp)
-        try:
-            return resp.json()
-        except (json.JSONDecodeError, ValueError):
-            return None
+        return _json_or_none(resp)
 
     def upload_directory(
         self,
@@ -404,50 +507,14 @@ class ArcanaService:
             ``"status"`` (``"uploaded"`` or ``"failed"``), and
             ``"error"`` (message string, only present on failure).
         """
-        directory = Path(directory)
-        if not directory.is_dir():
-            raise FileNotFoundError(f"Directory not found: {directory}")
-
-        glob_method = directory.rglob if recursive else directory.glob
-        files = sorted(p for p in glob_method(pattern) if p.is_file())
-
-        if not files:
-            raise FileNotFoundError(
-                f"No files matching '{pattern}' in {directory}"
-            )
-
-        try:
-            from tqdm.auto import tqdm
-        except ImportError:
-            tqdm = None
-
-        results = []
-        iterator = files
-        if tqdm is not None:
-            iterator = tqdm(files, desc="Uploading", unit="file")
-
-        for fp in iterator:
-            entry: dict = {"file": fp.name}
-            try:
-                self.upload(name, fp, overwrite=overwrite)
-                entry["status"] = "uploaded"
-            except Exception as e:
-                entry["status"] = "failed"
-                entry["error"] = str(e)
-            if verbose:
-                status_label = "Uploaded" if entry["status"] == "uploaded" else "FAILED"
-                print(f"  {fp.name}  {status_label}")
-            results.append(entry)
-
-        succeeded = sum(1 for r in results if r["status"] == "uploaded")
-        failed = len(results) - succeeded
-        summary = f"{succeeded}/{len(results)} files uploaded"
-        if failed:
-            summary += f" ({failed} failed)"
-        if verbose:
-            print(summary)
-
-        return results
+        files = self._glob_files(directory, pattern, recursive=recursive)
+        return self._run_file_batch(
+            files,
+            lambda fp: self.upload(name, fp, overwrite=overwrite),
+            verb="uploaded",
+            desc="Uploading",
+            verbose=verbose,
+        )
 
     def list_files(self, name: str) -> list[dict]:
         """List all files in an arcana.
@@ -487,10 +554,7 @@ class ArcanaService:
             headers=self._headers(),
         )
         raise_for_status(resp)
-        try:
-            return resp.json()
-        except (json.JSONDecodeError, ValueError):
-            return None
+        return _json_or_none(resp)
 
     def download_file(
         self, name: str, file_name: str, output_path: str | Path
@@ -549,52 +613,14 @@ class ArcanaService:
             ``"status"`` (``"deleted"`` or ``"failed"``), and
             ``"error"`` (only present on failure).
         """
-        directory = Path(directory)
-        if not directory.is_dir():
-            raise FileNotFoundError(f"Directory not found: {directory}")
-
-        glob_method = directory.rglob if recursive else directory.glob
-        filenames = sorted(
-            p.name for p in glob_method(pattern) if p.is_file()
+        files = self._glob_files(directory, pattern, recursive=recursive)
+        return self._run_file_batch(
+            files,
+            lambda fp: self.delete_file(name, fp.name),
+            verb="deleted",
+            desc="Deleting",
+            verbose=verbose,
         )
-
-        if not filenames:
-            raise FileNotFoundError(
-                f"No files matching '{pattern}' in {directory}"
-            )
-
-        try:
-            from tqdm.auto import tqdm
-        except ImportError:
-            tqdm = None
-
-        results = []
-        iterator = filenames
-        if tqdm is not None:
-            iterator = tqdm(filenames, desc="Deleting", unit="file")
-
-        for fn in iterator:
-            entry: dict = {"file": fn}
-            try:
-                self.delete_file(name, fn)
-                entry["status"] = "deleted"
-            except Exception as e:
-                entry["status"] = "failed"
-                entry["error"] = str(e)
-            if verbose:
-                label = "Deleted" if entry["status"] == "deleted" else "FAILED"
-                print(f"  {fn}  {label}")
-            results.append(entry)
-
-        succeeded = sum(1 for r in results if r["status"] == "deleted")
-        failed = len(results) - succeeded
-        summary = f"{succeeded}/{len(results)} files deleted"
-        if failed:
-            summary += f" ({failed} failed)"
-        if verbose:
-            print(summary)
-
-        return results
 
     def generate_index(
         self,
@@ -641,7 +667,7 @@ class ArcanaService:
             # caller polls via info()/get() on the shared client Session, and
             # requests.Session is not safe to use from two threads at once.
             def _fire():
-                session = requests.Session()
+                session = new_session_like(self._session)
                 try:
                     session.post(url, headers=self._headers(), timeout=600)
                 except Exception:
@@ -707,10 +733,7 @@ class ArcanaService:
             headers=self._headers(),
         )
         raise_for_status(resp)
-        try:
-            return resp.json()
-        except (json.JSONDecodeError, ValueError):
-            return None
+        return _json_or_none(resp)
 
     def setup_from_directory(
         self,
@@ -845,28 +868,13 @@ class ArcanaService:
             "inference-service": "saia-openai-gateway",
         }
 
-        if stream:
-            body["stream"] = True
-            headers["Accept"] = "text/event-stream"
-            resp = self._session.post(
-                f"{self._base_url}/chat/completions",
-                json=body,
-                headers=headers,
-                stream=True,
-            )
-            return SSEStream(resp)
-
-        resp = self._session.post(
+        return post_chat_completion(
+            self._session,
             f"{self._base_url}/chat/completions",
-            json=body,
+            body,
             headers=headers,
+            stream=stream,
         )
-        raise_for_status(resp)
-        result = resp.json()
-        # See ChatService.completions: a JSON-serializable rate-limit dict,
-        # attached on the non-streaming path only.
-        result["_rate_limits"] = parse_rate_limits(resp.headers).to_dict()
-        return result
 
     def __repr__(self):
         return f"ArcanaService(base_url={self._base_url!r})"

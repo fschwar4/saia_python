@@ -7,36 +7,13 @@ from typing import Optional
 import requests as _requests
 
 from .arcana import ArcanaService
-from .auth import load_api_key, load_config
+from .auth import resolve_credentials
 from .chat import ChatService
 from .documents import DocumentService
+from .exceptions import raise_for_status
 from .models import ModelsService
 from .rate_limits import RateLimitInfo, parse_rate_limits
 from .voice import VoiceService
-
-DEFAULT_BASE_URL = "https://chat-ai.academiccloud.de/v1"
-
-
-def resolve_base_url(explicit: str | None = None) -> str:
-    """Resolve the SAIA API base URL.
-
-    Resolution order: explicit parameter > ``[saia] base_url`` in
-    ``config.toml`` > hardcoded default.
-
-    Args:
-        explicit: An explicit URL. If provided, returned as-is (trailing
-            slash stripped).
-
-    Returns:
-        The resolved base URL string.
-    """
-    if explicit is not None:
-        return explicit.rstrip("/")
-    config = load_config()
-    toml_url = config.get("saia", {}).get("base_url", "")
-    if isinstance(toml_url, str) and toml_url.strip():
-        return toml_url.strip().rstrip("/")
-    return DEFAULT_BASE_URL
 
 
 class SAIAClient:
@@ -74,8 +51,9 @@ class SAIAClient:
         base_url: Optional[str] = None,
         key_file: Optional[str] = None,
     ):
-        self._api_key = api_key if api_key is not None else load_api_key(key_file)
-        self._base_url = resolve_base_url(base_url)
+        self._api_key, self._base_url = resolve_credentials(
+            api_key, base_url, key_file
+        )
         self._session = _requests.Session()
         self._session.headers.update(
             {
@@ -185,44 +163,32 @@ class SAIAClient:
             # The probe is *expected* to 400 (missing request body) but still
             # carries rate-limit headers. A 401/403 means the key is bad, so
             # surface it instead of silently returning an empty RateLimitInfo.
-            from .exceptions import raise_for_status
             raise_for_status(resp)
         return parse_rate_limits(resp.headers)
 
     def arcana_version(self) -> str:
         """Return the ARCANA API version string.
 
-        Calls ``GET /arcanas/api/v1/version``.
+        Thin delegate to :meth:`ArcanaService.version`
+        (``client.arcana.version()``), which owns the ARCANA URL path and
+        auth scheme.
 
         Returns:
             The version string (e.g. ``"0.4.16"``).
         """
-        resp = self._session.get(
-            f"{self._base_url}/arcanas/api/v1/version",
-            headers={"Authorization": self._api_key, "Accept": "application/json"},
-        )
-        from .exceptions import raise_for_status
-        raise_for_status(resp)
-        return resp.json().get("version", "")
+        return self.arcana.version()
 
     def arcana_heartbeat(self) -> bool:
         """Check if the ARCANA service is alive.
 
-        Calls ``GET /arcanas/api/v1/heartbeat``. Returns ``True`` if the
-        service responds with 204, ``False`` otherwise.
+        Thin delegate to :meth:`ArcanaService.heartbeat`
+        (``client.arcana.heartbeat()``). Returns ``True`` if the service
+        responds with 204, ``False`` otherwise.
 
         Returns:
             ``True`` if the service is reachable.
         """
-        try:
-            resp = self._session.get(
-                f"{self._base_url}/arcanas/api/v1/heartbeat",
-                headers={"Authorization": self._api_key, "Accept": "application/json"},
-                timeout=10,
-            )
-            return resp.status_code == 204
-        except Exception:
-            return False
+        return self.arcana.heartbeat()
 
     def health_check(self, *, verbose: bool = False) -> bool | dict:
         """Verify that the client can reach the API and authenticate.

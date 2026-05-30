@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-05-30
+
 ### Added
 
 - `examples/openai_compatible_proxy.ipynb` — a documented notebook that builds
@@ -14,6 +16,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   blocks (`models.list_raw()`, `arcana_references`, the native client), turning
   GWDG ARCANA's verbose `References:` dump into clean, numbered citations for
   any OpenAI-SDK client. Example only — not shipped in the package.
+- `ArcanaService.version()` and `ArcanaService.heartbeat()` — ARCANA
+  service-health checks now live on the service that owns the ARCANA URL path
+  and auth scheme (`client.arcana.version()` / `client.arcana.heartbeat()`).
+  `SAIAClient.arcana_version()` / `arcana_heartbeat()` are kept as thin
+  delegators, so existing calls are unchanged.
+
+### Changed
+
+- Internal de-duplication (no behavior change): the chat-completion POST
+  (shared by `ChatService.completions` and `ArcanaService.chat`), the directory
+  upload/delete batch loop, the optional-`tqdm` progress wrapper, the
+  background-thread `Session` helper, and API-key / base-URL resolution
+  (`resolve_credentials`, shared by `SAIAClient` and `create_openai_client`)
+  each now have a single implementation. ARCANA's URL path and auth scheme are
+  no longer duplicated in `SAIAClient`.
+- **Moved** base-URL / credential resolution into the configuration module:
+  `resolve_base_url`, `resolve_credentials`, and `DEFAULT_BASE_URL` now live in
+  `saia_python.auth` (beside `load_api_key` / `load_config`) rather than
+  `saia_python.client`. The package-level `saia_python.resolve_base_url` import
+  path is unchanged; only the `saia_python.client.resolve_base_url` submodule
+  path is affected (breaking for code that imported from `saia_python.client`).
 
 ## [0.3.0] — 2026-05-30
 
@@ -192,7 +215,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   resolution with owner-prefix handling.
 - Sphinx documentation (PyData theme) and a unit test suite.
 
-[Unreleased]: https://github.com/fschwar4/saia_python/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/fschwar4/saia_python/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/fschwar4/saia_python/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/fschwar4/saia_python/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/fschwar4/saia_python/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/fschwar4/saia_python/compare/v0.1.1...v0.1.2
