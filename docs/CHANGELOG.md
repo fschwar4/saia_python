@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ModelsService.list_raw()` — returns the raw ``GET /models`` response
+  envelope (the OpenAI ``{"object": "list", "data": [...]}`` dict) without
+  unwrapping, for callers that re-serve the full OpenAI-compatible payload
+  (e.g. an adapter proxying ``GET /v1/models``). `list()` now delegates to it.
+  New `tests/test_models.py`.
+
 ## [0.2.0] — 2026-05-29
 
 ### Added

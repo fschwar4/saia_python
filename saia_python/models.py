@@ -22,15 +22,33 @@ class ModelsService:
         self._session = session
         self._base_url = base_url.rstrip("/")
 
+    def list_raw(self) -> dict:
+        """Return the raw ``/models`` response envelope, as the API sent it.
+
+        Unlike :meth:`list`, this does **not** unwrap the OpenAI-style
+        ``{"object": "list", "data": [...]}`` envelope — it returns the
+        parsed JSON verbatim. Use it when you need the full
+        OpenAI-compatible payload, e.g. an adapter that re-serves SAIA's
+        models at its own ``GET /v1/models`` endpoint::
+
+            return client.models.list_raw()   # already the OpenAI envelope
+
+        Returns:
+            The parsed JSON response. For the SAIA / OpenAI-compatible API
+            this is a dict of the form
+            ``{"object": "list", "data": [...]}``.
+        """
+        resp = self._session.get(f"{self._base_url}/models")
+        raise_for_status(resp)
+        return resp.json()
+
     def list(self) -> list[dict]:
         """Return the full model list as returned by the API.
 
         Returns:
             A list of model dicts, each containing at least an ``"id"`` key.
         """
-        resp = self._session.get(f"{self._base_url}/models")
-        raise_for_status(resp)
-        data = resp.json()
+        data = self.list_raw()
         if isinstance(data, list):
             return data
         if isinstance(data, dict) and "data" in data:
