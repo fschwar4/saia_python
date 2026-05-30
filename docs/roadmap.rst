@@ -5,7 +5,7 @@ This roadmap outlines planned features for positioning ``saia-python`` as
 the foundational Python building block for the GWDG/KISSKI AI ecosystem.
 
 
-Research Tooling (v0.4)
+Research Tooling (v0.5)
 ------------------------
 
 **Batch processing**:
@@ -33,7 +33,7 @@ Research Tooling (v0.4)
   iterative prompt engineering.
 
 
-Ecosystem Integration (v0.5)
+Ecosystem Integration (v0.6)
 -----------------------------
 
 **LangChain integration** (``saia_python.langchain``):
