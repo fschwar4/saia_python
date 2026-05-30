@@ -93,9 +93,10 @@ saia-python/
 │   └── CHANGELOG.md
 ├── tests/                        # Unit tests
 ├── examples/
-│   ├── saia_python_demo.ipynb    # Interactive demo
-│   ├── config.toml.example       # Template for structured config
-│   └── .env.example              # Template for secrets (.env)
+│   ├── saia_python_demo.ipynb         # Interactive demo
+│   ├── openai_compatible_proxy.ipynb  # OpenAI-compatible proxy example
+│   ├── config.toml.example            # Template for structured config
+│   └── .env.example                   # Template for secrets (.env)
 ├── .github/workflows/            # CI/CD (tests + docs deployment)
 ├── pyproject.toml                # Package metadata + dependencies
 ├── .gitignore

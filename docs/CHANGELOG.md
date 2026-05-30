@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `examples/openai_compatible_proxy.ipynb` — a documented notebook that builds
+  a small OpenAI-compatible proxy in front of SAIA from the library's building
+  blocks (`models.list_raw()`, `arcana_references`, the native client), turning
+  GWDG ARCANA's verbose `References:` dump into clean, numbered citations for
+  any OpenAI-SDK client. Example only — not shipped in the package.
+
 ## [0.3.0] — 2026-05-30
 
 ### Added
