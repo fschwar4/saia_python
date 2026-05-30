@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unwrapping, for callers that re-serve the full OpenAI-compatible payload
   (e.g. an adapter proxying ``GET /v1/models``). `list()` now delegates to it.
   New `tests/test_models.py`.
+- Test coverage for previously-untested 0.2.0 behavior: `get_rate_limits()`
+  raising `AuthenticationError` on 401/403 (`tests/test_client.py`), and chat
+  streaming/non-streaming rate-limit parity (`tests/test_chat.py`).
 
 ## [0.2.0] — 2026-05-29
 
