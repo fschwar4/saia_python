@@ -18,6 +18,7 @@ Services
    chat
    voice
    arcana
+   arcana_references
    documents
    models
    rate_limits

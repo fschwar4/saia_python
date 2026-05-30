@@ -33,6 +33,13 @@ from .exceptions import APIError, AuthenticationError, RateLimitError, SAIAError
 from .rate_limits import RateLimitInfo, parse_rate_limits
 from .responses import text_of
 from ._streaming import SSEStream
+from .arcana_references import (
+    ArcanaReference,
+    ParsedReferences,
+    is_arcana_event,
+    parse_arcana_references,
+    parse_reference_entries,
+)
 
 try:
     __version__ = version("saia-python")
@@ -64,6 +71,12 @@ __all__ = [
     # Response helpers
     "text_of",
     "SSEStream",
+    # ARCANA reference parsing
+    "ArcanaReference",
+    "ParsedReferences",
+    "parse_arcana_references",
+    "parse_reference_entries",
+    "is_arcana_event",
     # Functional API
     "list_models",
     "list_model_ids",

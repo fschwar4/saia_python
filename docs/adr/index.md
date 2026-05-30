@@ -19,6 +19,7 @@ kept for history and marked as such). The [CHANGELOG](../CHANGELOG.md) records
 | [0002](0002-rate-limit-metadata-on-responses.md) | Rate-limit metadata on responses | Accepted |
 | [0003](0003-pyproject-single-source-of-dependency-truth.md) | `pyproject.toml` as the single source of dependency truth | Accepted |
 | [0004](0004-non-blocking-operations-via-futures.md) | Non-blocking operations via Futures and dedicated Sessions | Accepted |
+| [0005](0005-arcana-reference-parsing-in-the-core.md) | ARCANA reference parsing in the core (transport-agnostic) | Accepted |
 
 ```{toctree}
 :hidden:
@@ -29,4 +30,5 @@ kept for history and marked as such). The [CHANGELOG](../CHANGELOG.md) records
 0002-rate-limit-metadata-on-responses
 0003-pyproject-single-source-of-dependency-truth
 0004-non-blocking-operations-via-futures
+0005-arcana-reference-parsing-in-the-core
 ```

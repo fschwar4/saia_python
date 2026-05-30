@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Test coverage for previously-untested 0.2.0 behavior: `get_rate_limits()`
   raising `AuthenticationError` on 401/403 (`tests/test_client.py`), and chat
   streaming/non-streaming rate-limit parity (`tests/test_chat.py`).
+- `saia_python.arcana_references` — a pure, dependency-free module that parses
+  GWDG ARCANA's appended `References:` block into structured data:
+  `parse_arcana_references()`, `parse_reference_entries()`, `is_arcana_event()`,
+  and the `ArcanaReference` / `ParsedReferences` dataclasses. No HTTP/I-O, so
+  it imports cleanly into async servers. Lets external SAIA consumers (e.g. an
+  OpenAI-compatible adapter) drop their own copy of the GWDG reference regex.
+  See ADR-0005. New `tests/test_arcana_references.py`.
 
 ## [0.2.0] — 2026-05-29
 
