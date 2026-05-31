@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import requests as _requests
 
 from .arcana import ArcanaService
@@ -47,13 +45,11 @@ class SAIAClient:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
-        key_file: Optional[str] = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        key_file: str | None = None,
     ):
-        self._api_key, self._base_url = resolve_credentials(
-            api_key, base_url, key_file
-        )
+        self._api_key, self._base_url = resolve_credentials(api_key, base_url, key_file)
         self._session = _requests.Session()
         self._session.headers.update(
             {
@@ -95,9 +91,7 @@ class SAIAClient:
     def arcana(self) -> ArcanaService:
         """ARCANA/RAG service."""
         if self._arcana is None:
-            self._arcana = ArcanaService(
-                self._session, self._base_url, self._api_key
-            )
+            self._arcana = ArcanaService(self._session, self._base_url, self._api_key)
         return self._arcana
 
     @property
@@ -124,8 +118,10 @@ class SAIAClient:
         """
         if self._openai is None:
             from .openai_compat import create_openai_client
+
             self._openai = create_openai_client(
-                api_key=self._api_key, base_url=self._base_url,
+                api_key=self._api_key,
+                base_url=self._base_url,
             )
         return self._openai
 
@@ -138,8 +134,10 @@ class SAIAClient:
         """
         if self._openai_async is None:
             from .openai_compat import create_openai_client
+
             self._openai_async = create_openai_client(
-                api_key=self._api_key, base_url=self._base_url,
+                api_key=self._api_key,
+                base_url=self._base_url,
                 async_client=True,
             )
         return self._openai_async

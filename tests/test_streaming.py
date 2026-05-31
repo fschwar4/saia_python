@@ -17,41 +17,48 @@ def _make_response(lines, status_code=200):
 
 
 class TestIterSse:
-
     def test_normal_chunks(self):
-        resp = _make_response([
-            'data: {"choices": [{"delta": {"content": "Hello"}}]}',
-            'data: {"choices": [{"delta": {"content": " world"}}]}',
-            "data: [DONE]",
-        ])
+        resp = _make_response(
+            [
+                'data: {"choices": [{"delta": {"content": "Hello"}}]}',
+                'data: {"choices": [{"delta": {"content": " world"}}]}',
+                "data: [DONE]",
+            ]
+        )
         chunks = list(iter_sse(resp))
         assert len(chunks) == 2
         assert chunks[0]["choices"][0]["delta"]["content"] == "Hello"
 
     def test_done_terminates(self):
-        resp = _make_response([
-            'data: {"value": 1}',
-            "data: [DONE]",
-            'data: {"value": 2}',  # must not be yielded
-        ])
+        resp = _make_response(
+            [
+                'data: {"value": 1}',
+                "data: [DONE]",
+                'data: {"value": 2}',  # must not be yielded
+            ]
+        )
         chunks = list(iter_sse(resp))
         assert len(chunks) == 1
 
     def test_malformed_json_skipped(self):
-        resp = _make_response([
-            'data: {"valid": true}',
-            "data: {not json",
-            'data: {"also_valid": true}',
-            "data: [DONE]",
-        ])
+        resp = _make_response(
+            [
+                'data: {"valid": true}',
+                "data: {not json",
+                'data: {"also_valid": true}',
+                "data: [DONE]",
+            ]
+        )
         chunks = list(iter_sse(resp))
         assert len(chunks) == 2
 
     def test_no_space_after_data_colon(self):
-        resp = _make_response([
-            'data:{"compact": true}',
-            "data: [DONE]",
-        ])
+        resp = _make_response(
+            [
+                'data:{"compact": true}',
+                "data: [DONE]",
+            ]
+        )
         chunks = list(iter_sse(resp))
         assert len(chunks) == 1
         assert chunks[0]["compact"] is True
@@ -64,12 +71,13 @@ class TestIterSse:
 
 
 class TestSSEStream:
-
     def test_exposes_rate_limits_and_chunks(self):
-        resp = _make_response([
-            'data: {"choices": [{"delta": {"content": "Hi"}}]}',
-            "data: [DONE]",
-        ])
+        resp = _make_response(
+            [
+                'data: {"choices": [{"delta": {"content": "Hi"}}]}',
+                "data: [DONE]",
+            ]
+        )
         resp.headers = {
             "x-ratelimit-limit-minute": "30",
             "x-ratelimit-remaining-minute": "29",

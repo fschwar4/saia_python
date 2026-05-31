@@ -25,14 +25,17 @@ def test_setup_from_directory_composes_create_upload_index():
         patch.object(svc, "upload_directory") as m_upload,
         patch.object(svc, "generate_index") as m_index,
     ):
-        m_create.return_value = {"name": "MyKB-abc-uuid",
-                                 "id": "owner/MyKB-abc-uuid",
-                                 "message": {}}
+        m_create.return_value = {
+            "name": "MyKB-abc-uuid",
+            "id": "owner/MyKB-abc-uuid",
+            "message": {},
+        }
         m_upload.return_value = [{"file_name": "a.md", "status": "uploaded"}]
         m_index.return_value = {"index_status": "INDEXED"}
 
         result = svc.setup_from_directory(
-            "MyKB", "./markdown",
+            "MyKB",
+            "./markdown",
             pattern="**/*.md",
             update_toml=True,
             toml_label="my_kb",
@@ -88,7 +91,10 @@ def test_setup_from_directory_respects_append_uuid_false():
         toml_label=None,
     )
     m_upload.assert_called_once_with(
-        "ExactName", "./dir", pattern="*.md", verbose=True,
+        "ExactName",
+        "./dir",
+        pattern="*.md",
+        verbose=True,
     )
 
 
@@ -104,7 +110,10 @@ def test_setup_from_directory_propagates_wait_false():
         m_index.return_value = None
 
         svc.setup_from_directory(
-            "KB", "./dir", wait_for_index=False, index_timeout=42,
+            "KB",
+            "./dir",
+            wait_for_index=False,
+            index_timeout=42,
         )
 
     m_index.assert_called_once_with("KB-uuid", wait=False, timeout=42)

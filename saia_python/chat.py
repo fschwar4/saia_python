@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from ._http import post_chat_completion
 from ._streaming import SSEStream
@@ -28,9 +28,9 @@ class ChatService:
         model: str,
         messages: list[dict],
         *,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        max_tokens: int | None = None,
         stream: bool = False,
         **kwargs,
     ) -> dict | SSEStream:

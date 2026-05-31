@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from .exceptions import raise_for_status
 
@@ -73,8 +73,8 @@ class DocumentService:
         file_path: str | Path,
         *,
         response_type: str = "markdown",
-        extract_tables_as_images: Optional[bool] = None,
-        image_resolution_scale: Optional[int] = None,
+        extract_tables_as_images: bool | None = None,
+        image_resolution_scale: int | None = None,
     ) -> ConversionResult:
         """Convert a document using the Docling service.
 
@@ -117,9 +117,7 @@ class DocumentService:
             images=data.get("images", []),
         )
 
-    def convert_to_markdown(
-        self, file_path: str | Path, **kwargs
-    ) -> str:
+    def convert_to_markdown(self, file_path: str | Path, **kwargs) -> str:
         """Convert a document to markdown (convenience method).
 
         Args:
@@ -131,9 +129,7 @@ class DocumentService:
         """
         return self.convert(file_path, response_type="markdown", **kwargs).content
 
-    def convert_to_html(
-        self, file_path: str | Path, **kwargs
-    ) -> str:
+    def convert_to_html(self, file_path: str | Path, **kwargs) -> str:
         """Convert a document to HTML (convenience method).
 
         Args:

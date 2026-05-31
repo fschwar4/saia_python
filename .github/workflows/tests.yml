@@ -25,4 +25,4 @@ jobs:
         run: pip install -e ".[test]"
 
       - name: Run tests
-        run: pytest -v
+        run: pytest -v --cov=saia_python --cov-report=term-missing

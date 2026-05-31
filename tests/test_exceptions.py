@@ -8,7 +8,6 @@ from saia_python.exceptions import RateLimitError, raise_for_status
 
 
 class TestRaiseForStatus:
-
     def test_429_includes_parsed_rate_limits(self):
         resp = MagicMock()
         resp.status_code = 429

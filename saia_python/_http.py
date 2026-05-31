@@ -8,8 +8,6 @@ rather than being copied across :mod:`saia_python.chat`,
 
 from __future__ import annotations
 
-from typing import Optional
-
 import requests
 
 from ._streaming import SSEStream
@@ -37,9 +35,9 @@ def post_chat_completion(
     url: str,
     body: dict,
     *,
-    headers: Optional[dict] = None,
+    headers: dict | None = None,
     stream: bool = False,
-) -> "dict | SSEStream":
+) -> dict | SSEStream:
     """POST a chat-completion request and normalise the response.
 
     Shared by :meth:`ChatService.completions` and :meth:`ArcanaService.chat`:

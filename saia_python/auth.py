@@ -41,7 +41,7 @@ def _search_dirs() -> list[Path]:
 
 def _parse_dotenv(path: Path) -> dict[str, str]:
     """Parse a .env file into a dict of all KEY=value pairs."""
-    result = {}
+    result: dict[str, str] = {}
     try:
         content = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
@@ -85,8 +85,7 @@ def _load_toml(path: Path) -> tomlkit.TOMLDocument:
         return tomlkit.parse(content)
     except tomlkit.exceptions.ParseError as e:
         raise ValueError(
-            f"Invalid TOML in {path}: {e}\n"
-            f"Fix the syntax error or remove the file."
+            f"Invalid TOML in {path}: {e}\nFix the syntax error or remove the file."
         ) from e
 
 

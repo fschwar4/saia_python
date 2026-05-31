@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from saia_python.arcana import ArcanaService, extract_arcana_name
-from saia_python.auth import load_api_key, load_arcana_ids, load_config, load_username
+from saia_python.auth import load_api_key, load_arcana_ids, load_username
 
 
 def _clear_arcana_env(monkeypatch):
@@ -22,7 +22,6 @@ def _clear_arcana_env(monkeypatch):
 
 
 class TestLoadApiKey:
-
     def test_explicit_path_raw(self, tmp_path):
         f = tmp_path / ".saia_api"
         f.write_text("my-secret-key\n")
@@ -99,7 +98,6 @@ class TestLoadApiKey:
 
 
 class TestLoadArcanaIdsPriority:
-
     def test_priority_1_env_saia_arcana_id(self, monkeypatch, tmp_path):
         """SAIA_ARCANA_ID in env beats everything."""
         monkeypatch.chdir(tmp_path)
@@ -157,7 +155,6 @@ class TestLoadArcanaIdsPriority:
 
 
 class TestLoadArcanaIdsSources:
-
     def test_toml_ids_array(self, monkeypatch, tmp_path):
         _clear_arcana_env(monkeypatch)
         monkeypatch.chdir(tmp_path)
@@ -215,7 +212,6 @@ class TestLoadArcanaIdsSources:
 
 
 class TestLoadArcanaIdsLegacyRemoved:
-
     def test_legacy_arcana_id_ignored(self, monkeypatch, tmp_path):
         _clear_arcana_env(monkeypatch)
         monkeypatch.chdir(tmp_path)
@@ -278,7 +274,6 @@ class TestArcanaOwnerPrefix:
 
 
 class TestExtractArcanaName:
-
     def test_full_id_strips_owner(self):
         assert extract_arcana_name("saiauser123/My-Arcana-abc123") == "My-Arcana-abc123"
 
@@ -295,7 +290,6 @@ class TestExtractArcanaName:
 
 
 class TestLoadUsername:
-
     def test_from_toml(self, monkeypatch, tmp_path):
         monkeypatch.delenv("SAIA_USERNAME", raising=False)
         monkeypatch.chdir(tmp_path)
@@ -320,7 +314,6 @@ class TestLoadUsername:
 
 
 class TestArcanaSummary:
-
     def test_summary_output(self, monkeypatch, tmp_path):
         _clear_arcana_env(monkeypatch)
         monkeypatch.chdir(tmp_path)

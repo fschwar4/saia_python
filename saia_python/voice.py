@@ -5,7 +5,7 @@ from __future__ import annotations
 import concurrent.futures
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from ._http import new_session_like
 from .exceptions import raise_for_status
@@ -32,7 +32,7 @@ class VoiceService:
         *,
         model: str = "whisper-large-v2",
         response_format: str = "text",
-        language: Optional[str] = None,
+        language: str | None = None,
         wait: bool = True,
     ) -> str | concurrent.futures.Future[str]:
         """Transcribe an audio file to text.
@@ -122,7 +122,7 @@ class VoiceService:
         *,
         model: str,
         response_format: str,
-        language: Optional[str] = None,
+        language: str | None = None,
         wait: bool = True,
     ) -> str | concurrent.futures.Future[str]:
         file_path = Path(file_path)

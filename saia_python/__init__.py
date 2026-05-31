@@ -16,8 +16,15 @@ from __future__ import annotations
 
 import concurrent.futures
 from importlib.metadata import PackageNotFoundError, version
-from typing import Optional
 
+from ._streaming import SSEStream
+from .arcana_references import (
+    ArcanaReference,
+    ParsedReferences,
+    is_arcana_event,
+    parse_arcana_references,
+    parse_reference_entries,
+)
 from .auth import (
     DEFAULT_BASE_URL,
     add_arcana_to_config,
@@ -30,18 +37,10 @@ from .auth import (
 )
 from .client import SAIAClient
 from .documents import ConversionResult
-from .openai_compat import create_openai_client
 from .exceptions import APIError, AuthenticationError, RateLimitError, SAIAError
+from .openai_compat import create_openai_client
 from .rate_limits import RateLimitInfo, parse_rate_limits
 from .responses import text_of
-from ._streaming import SSEStream
-from .arcana_references import (
-    ArcanaReference,
-    ParsedReferences,
-    is_arcana_event,
-    parse_arcana_references,
-    parse_reference_entries,
-)
 
 try:
     __version__ = version("saia-python")
@@ -54,6 +53,7 @@ __all__ = [
     # Client
     "SAIAClient",
     "resolve_base_url",
+    "DEFAULT_BASE_URL",
     "create_openai_client",
     # Auth
     "load_api_key",
@@ -95,9 +95,7 @@ __all__ = [
 ]
 
 
-def _make_client(
-    api_key: Optional[str] = None, base_url: Optional[str] = None
-) -> SAIAClient:
+def _make_client(api_key: str | None = None, base_url: str | None = None) -> SAIAClient:
     kwargs: dict = {}
     if api_key is not None:
         kwargs["api_key"] = api_key
@@ -110,14 +108,14 @@ def _make_client(
 
 
 def list_models(
-    *, api_key: Optional[str] = None, base_url: Optional[str] = None
+    *, api_key: str | None = None, base_url: str | None = None
 ) -> list[dict]:
     """List all available models (functional API)."""
     return _make_client(api_key, base_url).models.list()
 
 
 def list_model_ids(
-    *, api_key: Optional[str] = None, base_url: Optional[str] = None
+    *, api_key: str | None = None, base_url: str | None = None
 ) -> list[str]:
     """List model ID strings (functional API)."""
     return _make_client(api_key, base_url).models.list_ids()
@@ -130,8 +128,8 @@ def chat_completion(
     model: str,
     messages: list[dict],
     *,
-    api_key: Optional[str] = None,
-    base_url: Optional[str] = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
     **kwargs,
 ) -> dict | SSEStream:
     """Send a chat completion request (functional API).
@@ -150,8 +148,8 @@ def chat_completion(
 def transcribe(
     file_path: str,
     *,
-    api_key: Optional[str] = None,
-    base_url: Optional[str] = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
     **kwargs,
 ) -> str | concurrent.futures.Future[str]:
     """Transcribe an audio file (functional API).
@@ -166,8 +164,8 @@ def transcribe(
 def translate(
     file_path: str,
     *,
-    api_key: Optional[str] = None,
-    base_url: Optional[str] = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
     **kwargs,
 ) -> str | concurrent.futures.Future[str]:
     """Translate an audio file to English (functional API).
@@ -183,14 +181,14 @@ def translate(
 
 
 def list_arcanas(
-    *, api_key: Optional[str] = None, base_url: Optional[str] = None
+    *, api_key: str | None = None, base_url: str | None = None
 ) -> list[dict]:
     """List all arcanas (functional API)."""
     return _make_client(api_key, base_url).arcana.list()
 
 
 def get_arcana(
-    name: str, *, api_key: Optional[str] = None, base_url: Optional[str] = None
+    name: str, *, api_key: str | None = None, base_url: str | None = None
 ) -> dict:
     """Get a specific arcana by name (functional API)."""
     return _make_client(api_key, base_url).arcana.get(name)
@@ -200,8 +198,8 @@ def upload_to_arcana(
     name: str,
     file_path: str,
     *,
-    api_key: Optional[str] = None,
-    base_url: Optional[str] = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
 ) -> dict | None:
     """Upload a file to an arcana (functional API)."""
     return _make_client(api_key, base_url).arcana.upload(name, file_path)
@@ -212,8 +210,8 @@ def arcana_chat(
     messages: list[dict],
     arcana_id: str,
     *,
-    api_key: Optional[str] = None,
-    base_url: Optional[str] = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
     **kwargs,
 ) -> dict | SSEStream:
     """Chat with RAG context from an arcana (functional API).
@@ -229,7 +227,7 @@ def arcana_chat(
 
 
 def get_rate_limits(
-    *, api_key: Optional[str] = None, base_url: Optional[str] = None
+    *, api_key: str | None = None, base_url: str | None = None
 ) -> RateLimitInfo:
     """Fetch current rate-limit status (functional API)."""
     return _make_client(api_key, base_url).get_rate_limits()
@@ -242,8 +240,8 @@ def convert_document(
     file_path: str,
     *,
     response_type: str = "markdown",
-    api_key: Optional[str] = None,
-    base_url: Optional[str] = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
     **kwargs,
 ) -> ConversionResult:
     """Convert a document using the Docling service (functional API).

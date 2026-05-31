@@ -1,0 +1,66 @@
+name: Publish to PyPI
+
+# Publishes to PyPI via OIDC Trusted Publishing when a GitHub Release is
+# published. No API token is stored: PyPI verifies the workflow's identity.
+#
+# One-time setup on PyPI (https://pypi.org/manage/account/publishing/):
+#   - PyPI project name: saia-python
+#   - Owner:             fschwar4
+#   - Repository:        saia_python
+#   - Workflow filename: publish.yml
+#   - Environment name:  pypi
+# (Before the first release the project does not exist yet — add it as a
+#  "pending publisher" using the same values.)
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        run: python -m pip install --upgrade build twine
+
+      - name: Build sdist and wheel
+        run: python -m build
+
+      - name: Check distribution metadata
+        run: twine check --strict dist/*
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/saia-python/
+    permissions:
+      id-token: write  # required for OIDC Trusted Publishing
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

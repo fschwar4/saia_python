@@ -1,5 +1,14 @@
 # saia-python
 
+[![PyPI](https://img.shields.io/pypi/v/saia-python.svg)](https://pypi.org/project/saia-python/)
+[![Python versions](https://img.shields.io/pypi/pyversions/saia-python.svg)](https://pypi.org/project/saia-python/)
+[![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](https://github.com/fschwar4/saia_python/blob/main/LICENSE)
+[![Tests](https://github.com/fschwar4/saia_python/actions/workflows/tests.yml/badge.svg)](https://github.com/fschwar4/saia_python/actions/workflows/tests.yml)
+[![Docs](https://img.shields.io/badge/docs-online-blue.svg)](https://fschwar4.github.io/saia_python/)
+<!-- After enabling Zenodo (Settings → Integrations → GitHub) and cutting a release,
+     paste the DOI badge Zenodo provides, e.g.:
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX) -->
+
 A Python wrapper for the [GWDG SAIA (Scalable AI Accelerator) platform](https://docs.hpc.gwdg.de/services/ai-services/saia/index.html) REST API.
 
 SAIA provides self-hosted, OpenAI-compatible AI services at GWDG, including chat completions, voice transcription/translation, document conversion, and RAG (ARCANA). This library wraps the REST API so you can use it from Python — both as an object-oriented client and as standalone functions.
@@ -76,7 +85,8 @@ saia-python/
 │   ├── auth.py                   # Credential and config discovery
 │   ├── rate_limits.py            # RateLimitInfo dataclass + parser
 │   ├── exceptions.py             # SAIAError hierarchy + raise_for_status
-│   └── _streaming.py             # Shared SSE iterator
+│   ├── _streaming.py             # Shared SSE iterator
+│   └── py.typed                  # PEP 561 typing marker
 ├── docs/                         # Sphinx documentation (PyData theme)
 │   ├── conf.py
 │   ├── index.rst
@@ -97,13 +107,16 @@ saia-python/
 │   ├── openai_compatible_proxy.ipynb  # OpenAI-compatible proxy example
 │   ├── config.toml.example            # Template for structured config
 │   └── .env.example                   # Template for secrets (.env)
-├── .github/workflows/            # CI/CD (tests + docs deployment)
+├── .github/workflows/            # CI/CD (tests, docs, PyPI publish)
 ├── pyproject.toml                # Package metadata + dependencies
+├── CITATION.cff                  # Citation metadata (CFF 1.2.0)
 ├── .gitignore
 └── README.md
 ```
 
 ## Documentation
+
+Online documentation: <https://fschwar4.github.io/saia_python/>
 
 Build the docs locally:
 
@@ -113,6 +126,13 @@ sphinx-build -b html -w warnings_sphinx_build.txt docs docs/_build/html
 python3 -m http.server 8000 --directory docs/_build/html
 ```
 
+## Citation
+
+If you use `saia-python` in your work, please cite it. Citation metadata lives in
+[`CITATION.cff`](https://github.com/fschwar4/saia_python/blob/main/CITATION.cff); GitHub's "Cite this repository" button renders it
+as APA or BibTeX. A Zenodo DOI will be added here once the first release is
+archived.
+
 ## License
 
-AGPL-3.0
+[AGPL-3.0-only](https://github.com/fschwar4/saia_python/blob/main/LICENSE)

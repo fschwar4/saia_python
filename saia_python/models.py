@@ -95,19 +95,23 @@ class ModelsService:
         """
         model_ids = self.list_ids()
 
-        _PROBE_TOOLS = [{
-            "type": "function",
-            "function": {
-                "name": "probe",
-                "description": "Test probe.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"x": {"type": "string"}},
-                    "required": ["x"],
+        _PROBE_TOOLS = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "probe",
+                    "description": "Test probe.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"x": {"type": "string"}},
+                        "required": ["x"],
+                    },
                 },
-            },
-        }]
-        _PROBE_MESSAGES = [{"role": "user", "content": "Call the probe tool with x='test'."}]
+            }
+        ]
+        _PROBE_MESSAGES = [
+            {"role": "user", "content": "Call the probe tool with x='test'."}
+        ]
 
         capable = []
         for mid in progress_iter(

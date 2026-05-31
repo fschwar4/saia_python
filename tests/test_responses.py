@@ -7,9 +7,7 @@ from saia_python import text_of
 
 def test_text_of_extracts_first_choice_content():
     response = {
-        "choices": [
-            {"message": {"role": "assistant", "content": "Hello there"}}
-        ]
+        "choices": [{"message": {"role": "assistant", "content": "Hello there"}}]
     }
     assert text_of(response) == "Hello there"
 
@@ -31,8 +29,7 @@ def test_text_of_returns_empty_string_when_choices_key_missing(caplog):
 def test_text_of_returns_empty_when_content_is_none(caplog):
     response = {
         "choices": [
-            {"message": {"role": "assistant", "content": None},
-             "finish_reason": "stop"}
+            {"message": {"role": "assistant", "content": None}, "finish_reason": "stop"}
         ]
     }
     with caplog.at_level(logging.WARNING, logger="saia_python.responses"):

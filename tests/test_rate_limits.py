@@ -4,7 +4,6 @@ from saia_python.rate_limits import RateLimitInfo, parse_rate_limits
 
 
 class TestParseRateLimits:
-
     def test_full_headers(self):
         headers = {
             "x-ratelimit-limit-minute": "30",
@@ -35,16 +34,19 @@ class TestParseRateLimits:
 
 
 class TestRateLimitInfoStr:
-
     def test_str_renders_without_crashing(self):
         """``__str__`` is a human-readable summary: verify it renders the
         header and values and tolerates ``None`` fields. The exact column
         alignment is cosmetic and intentionally not asserted (too brittle)."""
         info = RateLimitInfo(
-            limit_minute=30, remaining_minute=27,
-            limit_hour=200, remaining_hour=197,
-            limit_day=1000, remaining_day=960,
-            limit_month=3000, remaining_month=2960,
+            limit_minute=30,
+            remaining_minute=27,
+            limit_hour=200,
+            remaining_hour=197,
+            limit_day=1000,
+            remaining_day=960,
+            limit_month=3000,
+            remaining_month=2960,
             reset_seconds=11,
         )
         output = str(info)
@@ -52,4 +54,6 @@ class TestRateLimitInfoStr:
         assert "30" in output and "Resets in 11s" in output
 
         # A ``None`` field must not raise when formatting.
-        assert isinstance(str(RateLimitInfo(limit_minute=30, remaining_minute=None)), str)
+        assert isinstance(
+            str(RateLimitInfo(limit_minute=30, remaining_minute=None)), str
+        )

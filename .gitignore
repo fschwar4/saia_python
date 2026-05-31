@@ -35,3 +35,12 @@ Thumbs.db
 # Sphinx
 docs/_build/
 warnings_sphinx_build.txt
+
+# Testing, linting, type-checking
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml

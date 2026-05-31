@@ -1,22 +1,21 @@
 """Rate limit header parsing for SAIA API responses."""
 
 from dataclasses import asdict, dataclass
-from typing import Optional
 
 
 @dataclass
 class RateLimitInfo:
     """Parsed rate-limit information from SAIA API response headers."""
 
-    limit_minute: Optional[int] = None
-    limit_hour: Optional[int] = None
-    limit_day: Optional[int] = None
-    limit_month: Optional[int] = None
-    remaining_minute: Optional[int] = None
-    remaining_hour: Optional[int] = None
-    remaining_day: Optional[int] = None
-    remaining_month: Optional[int] = None
-    reset_seconds: Optional[int] = None
+    limit_minute: int | None = None
+    limit_hour: int | None = None
+    limit_day: int | None = None
+    limit_month: int | None = None
+    remaining_minute: int | None = None
+    remaining_hour: int | None = None
+    remaining_day: int | None = None
+    remaining_month: int | None = None
+    reset_seconds: int | None = None
 
     def to_dict(self) -> dict:
         """Return a plain, JSON-serializable dict of all rate-limit fields."""

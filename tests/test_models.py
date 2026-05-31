@@ -28,7 +28,7 @@ def test_list_raw_returns_envelope_not_unwrapped():
     ``data``), and uses GET /models (not POST)."""
     svc, session = _service(_ENVELOPE)
     result = svc.list_raw()
-    assert result["object"] == "list"          # envelope preserved, not unwrapped
+    assert result["object"] == "list"  # envelope preserved, not unwrapped
     assert result["data"] == _ENVELOPE["data"]
     session.get.assert_called_once_with("https://example.com/v1/models")
 

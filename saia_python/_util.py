@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Iterator
+from collections.abc import Iterable, Iterator
 
 
 def progress_iter(

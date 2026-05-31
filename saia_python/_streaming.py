@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Generator
+from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 from .exceptions import raise_for_status
 from .rate_limits import parse_rate_limits
@@ -29,7 +30,7 @@ def iter_sse(response: requests.Response) -> Generator[dict, None, None]:
         for line in response.iter_lines(decode_unicode=True):
             if not line or not line.startswith("data:"):
                 continue
-            payload = line[len("data:"):].strip()
+            payload = line[len("data:") :].strip()
             if payload == "[DONE]":
                 return
             try:
@@ -64,7 +65,7 @@ class SSEStream:
         self.rate_limits: dict = parse_rate_limits(response.headers).to_dict()
         self._chunks = iter_sse(response)
 
-    def __iter__(self) -> "SSEStream":
+    def __iter__(self) -> SSEStream:
         return self
 
     def __next__(self) -> dict:
@@ -80,7 +81,7 @@ class SSEStream:
         self._chunks.close()
         self._response.close()
 
-    def __enter__(self) -> "SSEStream":
+    def __enter__(self) -> SSEStream:
         return self
 
     def __exit__(self, *exc) -> None:

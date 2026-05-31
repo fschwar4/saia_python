@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-06-01
+
+First release published to PyPI as
+[`saia-python`](https://pypi.org/project/saia-python/), together with
+open-source project tooling and incremental-upload helpers for ARCANA.
+
+### Added
+
+- `ArcanaService.upload_files(name, paths, *, overwrite=True, verbose=False)` —
+  upload an explicit, caller-chosen list of files. The *selection* of what to
+  (re)upload is the caller's (e.g. from a checksum/manifest comparison); reuses
+  the same per-file batch reporting as `upload_directory`.
+- `ArcanaService.sync_directory(name, directory, *, select, pattern="*",
+  recursive=False, prune=False, index=True, index_wait=True, verbose=False)` —
+  sync a local directory under a caller-supplied
+  `select(local_path, remote_or_None) -> "upload" | "replace" | "skip"` policy,
+  then trigger a single `generate_index` only when something changed. Keeps
+  change-detection (e.g. SHA-256 vs. your own manifest) outside the package,
+  since the ARCANA API exposes no content hash. Optional `prune` deletes remote
+  files with no local counterpart.
+- PyPI packaging metadata in `pyproject.toml`: `readme`, `license-files`,
+  `keywords`, trove `classifiers`, and an expanded `[project.urls]` table
+  (Homepage, Documentation, Changelog, Issues) so the project page renders the
+  README and is discoverable.
+- `CITATION.cff` (Citation File Format 1.2.0) — enables GitHub's "Cite this
+  repository" button and import into reference managers.
+- `saia_python/py.typed` — PEP 561 marker so downstream type checkers consume
+  the package's inline type hints; advertised via the `Typing :: Typed`
+  classifier.
+- `.github/workflows/publish.yml` — builds the sdist + wheel, runs
+  `twine check --strict`, and publishes to PyPI via OIDC Trusted Publishing
+  when a GitHub Release is published (no stored API token).
+- README status badges (PyPI, Python versions, license, CI, docs) and a
+  commented Zenodo DOI badge placeholder.
+- Linting and type-checking: `ruff` (lint + format) and `mypy` configuration in
+  `pyproject.toml`, a `lint` optional-dependency group, a
+  `.pre-commit-config.yaml`, and a `Quality` CI workflow
+  (`ruff check` + `ruff format --check` + `mypy`).
+- Coverage reporting via `pytest-cov`; the Tests workflow now runs
+  `pytest --cov`.
+
+### Changed
+
+- `ArcanaService.list_files()` now documents the full API `FileOutSchema`
+  (`name`, `size`, `owner_user_name`, `created_at`, `updated_at`, `index_info`
+  with per-file `index_status` / `chunks_indexed`, and `related_files`).
+- Corrected the `license` field from the deprecated SPDX identifier `AGPL-3.0`
+  to `AGPL-3.0-only`. The license terms are unchanged; only the SPDX expression
+  is now valid for PEP 639 / PyPI. Bumped the build requirement to
+  `setuptools>=77` (PEP 639 support).
+- Applied `ruff` autofixes and the formatter across the package and tests
+  (`Optional[X]` → `X | None`, import sorting, consistent formatting) plus minor
+  `mypy` type-annotation fixes. No behavior change — all 92 tests pass. Known
+  typing gaps (tomlkit's `Item | Container` in `auth.py`; the `.list` method
+  shadowing the builtin in `models.py` / `arcana.py`) are scoped via documented
+  per-module `mypy` overrides.
+
 ## [0.4.0] — 2026-05-30
 
 ### Added
@@ -215,7 +272,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   resolution with owner-prefix handling.
 - Sphinx documentation (PyData theme) and a unit test suite.
 
-[Unreleased]: https://github.com/fschwar4/saia_python/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/fschwar4/saia_python/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/fschwar4/saia_python/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/fschwar4/saia_python/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/fschwar4/saia_python/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/fschwar4/saia_python/compare/v0.1.2...v0.2.0

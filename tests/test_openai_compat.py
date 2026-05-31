@@ -10,7 +10,6 @@ from saia_python.openai_compat import create_openai_client
 
 
 class TestCreateOpenaiClient:
-
     def test_explicit_credentials(self):
         """Explicit api_key and base_url are passed through without resolution."""
         client = create_openai_client(
@@ -30,14 +29,14 @@ class TestCreateOpenaiClient:
     def test_async_client(self):
         """async_client=True returns AsyncOpenAI."""
         client = create_openai_client(
-            api_key="key", base_url="https://example.com/v1",
+            api_key="key",
+            base_url="https://example.com/v1",
             async_client=True,
         )
         assert isinstance(client, openai.AsyncOpenAI)
 
 
 class TestSAIAClientOpenaiProperty:
-
     def test_openai_property_lazy_and_cached(self):
         """Property creates on first access and returns same instance."""
         from saia_python import SAIAClient

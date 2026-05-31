@@ -9,14 +9,12 @@ SAIA API.
 
 from __future__ import annotations
 
-from typing import Optional
-
 
 def create_openai_client(
     *,
-    api_key: Optional[str] = None,
-    base_url: Optional[str] = None,
-    key_file: Optional[str] = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    key_file: str | None = None,
     async_client: bool = False,
 ):
     """Create an OpenAI client configured for the SAIA platform.

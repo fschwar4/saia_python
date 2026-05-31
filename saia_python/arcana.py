@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import uuid as _uuid
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Optional
+from typing import cast
 from urllib.parse import quote
 
 import requests
@@ -37,7 +38,7 @@ def extract_arcana_name(id_or_name: str) -> str:
     return id_or_name
 
 
-def _json_or_none(resp) -> "dict | None":
+def _json_or_none(resp) -> dict | None:
     """Return ``resp.json()``, or ``None`` when the body is empty / not JSON.
 
     Several ARCANA management endpoints (delete, upload, delete-index, …) may
@@ -83,10 +84,7 @@ class ArcanaService:
                 f"files: {a.get('file_count', '?')}, "
                 f"status: {status})"
             )
-        return (
-            f"  {a['name']}  "
-            f"(files: {a.get('file_count', '?')}, status: {status})"
-        )
+        return f"  {a['name']}  (files: {a.get('file_count', '?')}, status: {status})"
 
     @staticmethod
     def _glob_files(
@@ -270,6 +268,7 @@ class ArcanaService:
 
         if update_toml:
             from .auth import add_arcana_to_config
+
             add_arcana_to_config(full_id, label=toml_label)
 
         return result
@@ -304,6 +303,7 @@ class ArcanaService:
 
         if update_toml:
             from .auth import remove_arcana_from_config
+
             # Try both formats (full ID and plain name)
             remove_arcana_from_config(full_id)
             if full_id != name:
@@ -341,6 +341,7 @@ class ArcanaService:
         """
         if arcana_ids is None:
             from .auth import load_arcana_ids
+
             arcana_ids = load_arcana_ids()
 
         lines = []
@@ -416,7 +417,7 @@ class ArcanaService:
             data = self.get(name)
         idx = data.get("index_info") or {}
 
-        def _size_fmt(n: int) -> str:
+        def _size_fmt(n: float) -> str:
             for unit in ("B", "KB", "MB", "GB"):
                 if abs(n) < 1024:
                     return f"{n:.1f} {unit}"
@@ -440,7 +441,9 @@ class ArcanaService:
             if idx.get("error_msg") is not None:
                 lines.insert(4, f"{'Error':<{_W}}{idx['error_msg']}")
             lines.append(f"{'CLI version':<{_W}}{idx.get('cli_version', '?')}")
-            lines.append(f"{'Vector DB version':<{_W}}{idx.get('vector_db_version', '?')}")
+            lines.append(
+                f"{'Vector DB version':<{_W}}{idx.get('vector_db_version', '?')}"
+            )
 
         return "\n".join(lines)
 
@@ -516,6 +519,45 @@ class ArcanaService:
             verbose=verbose,
         )
 
+    def upload_files(
+        self,
+        name: str,
+        paths: Iterable[str | Path],
+        *,
+        overwrite: bool = True,
+        verbose: bool = False,
+    ) -> list[dict]:
+        """Upload an explicit, caller-chosen list of files to an arcana.
+
+        Unlike :meth:`upload_directory` (which globs a whole directory), this
+        uploads exactly the ``paths`` you pass — so the *selection* of what to
+        (re)upload is entirely the caller's decision (e.g. the result of your
+        own changed-file / checksum comparison). Pair it with
+        :meth:`list_files` (whose dicts carry per-file ``index_info``) and a
+        single :meth:`generate_index` afterwards.
+
+        Args:
+            name: The arcana name or full ``owner/name`` ID.
+            paths: An iterable of paths to upload.
+            overwrite: If ``True`` (default), replace existing files (PUT); if
+                ``False``, create new files (POST). Defaults to ``True`` because
+                the typical caller has already decided these files are new or
+                changed.
+            verbose: If ``True``, print per-file upload status.
+
+        Returns:
+            A list of ``{"file", "status", ["error"]}`` dicts — the same shape
+            as :meth:`upload_directory`.
+        """
+        files = [Path(p) for p in paths]
+        return self._run_file_batch(
+            files,
+            lambda fp: self.upload(name, fp, overwrite=overwrite),
+            verb="uploaded",
+            desc="Uploading",
+            verbose=verbose,
+        )
+
     def list_files(self, name: str) -> list[dict]:
         """List all files in an arcana.
 
@@ -525,7 +567,25 @@ class ArcanaService:
             name: The arcana name or full ``owner/name`` ID.
 
         Returns:
-            A list of file dicts.
+            A list of file dicts (the API ``FileOutSchema``). Each entry has:
+
+            - ``name`` (str): file name — use with :meth:`download_file`,
+              :meth:`delete_file`, or an ``overwrite`` upload.
+            - ``size`` (int): size in bytes.
+            - ``owner_user_name`` (str): the owning user.
+            - ``created_at`` / ``updated_at`` (str): ISO-8601 timestamps.
+            - ``index_info`` (dict | None): per-file index state, or ``None``
+              if the file has never been indexed. When present it holds
+              ``index_status`` (str — e.g. ``"INDEXED"``, ``"NOT_INDEXED"``,
+              ``"ERROR"``) and ``chunks_indexed`` (int — number of embedding
+              chunks produced for the file).
+            - ``related_files`` (list | None): nested entries of the same
+              shape, when the server groups derived files together.
+
+            The per-file ``index_info`` lets callers see which files are
+            already indexed without doing any work. Indexing itself is
+            triggered per-arcana via :meth:`generate_index` — the ARCANA API
+            has no per-file index call.
         """
         name = extract_arcana_name(name)
         resp = self._session.get(
@@ -556,9 +616,7 @@ class ArcanaService:
         raise_for_status(resp)
         return _json_or_none(resp)
 
-    def download_file(
-        self, name: str, file_name: str, output_path: str | Path
-    ) -> Path:
+    def download_file(self, name: str, file_name: str, output_path: str | Path) -> Path:
         """Download a file from an arcana to a local path.
 
         Accepts either the plain name or the full ``owner/name`` ID.
@@ -621,6 +679,129 @@ class ArcanaService:
             desc="Deleting",
             verbose=verbose,
         )
+
+    def sync_directory(
+        self,
+        name: str,
+        directory: str | Path,
+        *,
+        select: Callable[[Path, dict | None], str],
+        pattern: str = "*",
+        recursive: bool = False,
+        prune: bool = False,
+        index: bool = True,
+        index_wait: bool = True,
+        verbose: bool = False,
+    ) -> dict:
+        """Sync a local directory into an arcana under caller-defined rules.
+
+        The *policy* — which files to upload, replace, or skip — stays entirely
+        outside the package: you supply a ``select`` callback that decides per
+        file. This method only does the plumbing: glob the directory, fetch the
+        remote listing, apply your decisions, and (optionally) trigger a single
+        index pass. ARCANA stores no content hash, so any content-change
+        detection (e.g. SHA-256 against your own manifest) belongs in
+        ``select``.
+
+        Args:
+            name: The arcana name or full ``owner/name`` ID.
+            directory: Local directory to sync from.
+            select: Called once per local file as ``select(local_path, remote)``
+                where ``local_path`` is a :class:`pathlib.Path` and ``remote``
+                is the matching file dict from :meth:`list_files` (matched by
+                name) or ``None`` if the file is not in the arcana yet. Must
+                return ``"upload"`` (POST new), ``"replace"`` (PUT over an
+                existing file), or ``"skip"``.
+            pattern: Glob pattern for local files (default ``"*"``).
+            recursive: If ``True``, recurse into subdirectories.
+            prune: If ``True``, delete remote files that have no local
+                counterpart by name. Defaults to ``False`` (never deletes
+                implicitly).
+            index: If ``True`` (default), call :meth:`generate_index` once after
+                the sync — but only when something actually changed.
+            index_wait: Forwarded to :meth:`generate_index` as ``wait``.
+            verbose: If ``True``, print per-file actions and a summary.
+
+        Returns:
+            A report ``dict`` with keys ``"uploaded"``, ``"replaced"``,
+            ``"skipped"``, ``"deleted"`` (lists of file names), ``"failed"``
+            (list of ``{"file", "error"}``) and ``"index"`` (the
+            :meth:`generate_index` result, or ``None`` if indexing was skipped).
+
+        Raises:
+            ValueError: If ``select`` returns anything other than ``"upload"``,
+                ``"replace"``, or ``"skip"``.
+        """
+        local_files = self._glob_files(directory, pattern, recursive=recursive)
+        # cast: `list_files` returns list[dict], but the `.list` method on this
+        # class shadows the builtin in annotations (see the mypy override), so
+        # mypy mis-types the return — cast restores `list` here.
+        remote_files = cast(list, self.list_files(name))
+        remote_by_name = {f["name"]: f for f in remote_files}
+
+        # Pass 1 — ask the caller's policy what to do with each local file.
+        valid = {"upload", "replace", "skip"}
+        plan: list[tuple[Path, str]] = []
+        for path in local_files:
+            action = select(path, remote_by_name.get(path.name))
+            if action not in valid:
+                raise ValueError(
+                    f"select() must return one of {sorted(valid)}; "
+                    f"got {action!r} for {path.name}"
+                )
+            plan.append((path, action))
+
+        report: dict = {
+            "uploaded": [],
+            "replaced": [],
+            "skipped": [],
+            "deleted": [],
+            "failed": [],
+            "index": None,
+        }
+
+        # Pass 2 — apply the plan.
+        for path, action in plan:
+            if action == "skip":
+                report["skipped"].append(path.name)
+                continue
+            overwrite = action == "replace"
+            bucket = "replaced" if overwrite else "uploaded"
+            try:
+                self.upload(name, path, overwrite=overwrite)
+                report[bucket].append(path.name)
+                if verbose:
+                    print(f"  {path.name}  {bucket}")
+            except Exception as e:
+                report["failed"].append({"file": path.name, "error": str(e)})
+                if verbose:
+                    print(f"  {path.name}  FAILED ({e})")
+
+        if prune:
+            local_names = {p.name for p in local_files}
+            for remote_name in remote_by_name:
+                if remote_name in local_names:
+                    continue
+                try:
+                    self.delete_file(name, remote_name)
+                    report["deleted"].append(remote_name)
+                    if verbose:
+                        print(f"  {remote_name}  deleted")
+                except Exception as e:
+                    report["failed"].append({"file": remote_name, "error": str(e)})
+
+        if index and (report["uploaded"] or report["replaced"] or report["deleted"]):
+            report["index"] = self.generate_index(name, wait=index_wait)
+
+        if verbose:
+            print(
+                f"sync: {len(report['uploaded'])} uploaded, "
+                f"{len(report['replaced'])} replaced, "
+                f"{len(report['skipped'])} skipped, "
+                f"{len(report['deleted'])} deleted, "
+                f"{len(report['failed'])} failed"
+            )
+        return report
 
     def generate_index(
         self,
@@ -706,7 +887,7 @@ class ArcanaService:
         while time.monotonic() < deadline:
             time.sleep(poll_interval)
             data = self.get(name)
-            idx = (data.get("index_info") or {})
+            idx = data.get("index_info") or {}
             status = idx.get("index_status", "")
             if status in terminal:
                 return data
@@ -827,8 +1008,8 @@ class ArcanaService:
         messages: list[dict],
         arcana_id: str,
         *,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
         stream: bool = False,
         **kwargs,
     ) -> dict | SSEStream:

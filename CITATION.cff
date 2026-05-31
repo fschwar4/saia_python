@@ -1,0 +1,43 @@
+# This CITATION.cff file lets GitHub render a "Cite this repository" button
+# and lets reference managers (Zotero, etc.) import citation metadata.
+# Format reference: https://citation-file-format.github.io/
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+title: "saia-python"
+abstract: >-
+  A Python wrapper for the GWDG SAIA (Scalable AI Accelerator) platform REST API,
+  providing object-oriented and functional access to chat completions, voice
+  transcription/translation, document conversion, ARCANA (RAG / knowledge bases),
+  and an OpenAI SDK compatibility layer.
+type: software
+authors:
+  - family-names: Schwarz
+    given-names: Friedrich
+    email: friedrich.schwarz@uni-goettingen.de
+    orcid: "https://orcid.org/0009-0001-1167-8365"
+    affiliation: >-
+      Göttingen Campus Institute for Dynamics of Biological
+      Networks (CIDBN), University of Göttingen, Göttingen,
+      Germany
+version: 0.4.1
+date-released: "2026-05-30"
+license: AGPL-3.0-only
+repository-code: "https://github.com/fschwar4/saia_python"
+url: "https://fschwar4.github.io/saia_python/"
+# After archiving a release on Zenodo, uncomment and fill these:
+# identifiers:
+#   - type: doi
+#     value: "10.5281/zenodo.XXXXXXX"   # Zenodo Concept DOI (cite-all-versions)
+#     description: Zenodo Concept DOI
+#   - type: doi
+#     value: "10.5281/zenodo.YYYYYYY"   # this specific release
+#     description: Zenodo Software Version DOI (v0.4.1)
+keywords:
+  - GWDG
+  - SAIA
+  - ARCANA
+  - RAG
+  - LLM
+  - OpenAI
+  - academic-cloud
+  - AI
