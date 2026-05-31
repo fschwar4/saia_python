@@ -24,14 +24,13 @@ date-released: "2026-05-30"
 license: AGPL-3.0-only
 repository-code: "https://github.com/fschwar4/saia_python"
 url: "https://fschwar4.github.io/saia_python/"
-# After archiving a release on Zenodo, uncomment and fill these:
-# identifiers:
-#   - type: doi
-#     value: "10.5281/zenodo.XXXXXXX"   # Zenodo Concept DOI (cite-all-versions)
-#     description: Zenodo Concept DOI
-#   - type: doi
-#     value: "10.5281/zenodo.YYYYYYY"   # this specific release
-#     description: Zenodo Software Version DOI (v0.4.1)
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.20480724"   # Zenodo Concept DOI (cite-all-versions)
+    description: Zenodo Concept DOI
+  - type: doi
+    value: "10.5281/zenodo.20480725"   # this specific release
+    description: Zenodo Software Version DOI (v0.4.1)
 keywords:
   - GWDG
   - SAIA
