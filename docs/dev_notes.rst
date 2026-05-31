@@ -4,12 +4,13 @@ Developer Notes
 Installation Options
 --------------------
 
-The package provides three optional dependency groups:
+The package provides several optional dependency groups:
 
 .. code-block:: bash
 
-   pip install -e .            # Core only (requests + tqdm)
-   pip install -e ".[test]"    # Testing (pytest)
+   pip install -e .            # Core only (requests + tqdm + tomlkit)
+   pip install -e ".[test]"    # Testing (pytest + pytest-cov)
+   pip install -e ".[lint]"    # Linting + type-checking (ruff, mypy)
    pip install -e ".[docs]"    # Documentation (Sphinx + extensions)
    pip install -e ".[dev]"     # All of the above + jupyter
 
@@ -21,8 +22,11 @@ The package provides three optional dependency groups:
      - Installs
      - Use case
    * - ``test``
-     - ``pytest>=7.0``
-     - Running the test suite.
+     - ``pytest>=7.0``, ``pytest-cov>=4.0``
+     - Running the test suite (with coverage).
+   * - ``lint``
+     - ``ruff>=0.6``, ``mypy>=1.10``, ``types-requests``
+     - Linting, formatting, and type-checking.
    * - ``docs``
      - ``sphinx>=7.0``, ``pydata-sphinx-theme>=0.15``, ``sphinx-design``, ``sphinx-copybutton``, ``myst-parser``
      - Building the HTML documentation.
@@ -53,89 +57,116 @@ Then open http://localhost:8000.
 CI/CD
 -----
 
-Two GitHub Actions workflows automate testing and documentation deployment:
+Four GitHub Actions workflows run the project:
 
 **Tests** (``.github/workflows/tests.yml``):
 
-- Triggered on push and pull request to ``main``.
-- Runs ``pytest`` across Python 3.10, 3.11, 3.12, and 3.13.
+- Push / pull request to ``main``.
+- Runs ``pytest --cov`` across Python 3.10, 3.11, 3.12, and 3.13.
+
+**Quality** (``.github/workflows/quality.yml``):
+
+- Push / pull request to ``main``.
+- Runs ``ruff check``, ``ruff format --check``, and ``mypy``.
 
 **Documentation** (``.github/workflows/docs.yml``):
 
-- Triggered on push to ``main``.
-- Builds Sphinx documentation with warnings as errors (``-W``).
-- Deploys to GitHub Pages automatically.
+- Push to ``main``.
+- Builds the docs with warnings as errors (``-W``) and deploys to GitHub Pages.
 
-To enable GitHub Pages deployment:
+**Publish** (``.github/workflows/publish.yml``):
 
-1. Go to the repository **Settings > Pages**.
-2. Under **Source**, select **GitHub Actions**.
+- Runs when a GitHub Release is *published*.
+- Builds the sdist + wheel, runs ``twine check --strict``, and uploads to
+  PyPI via OIDC Trusted Publishing (no API token is stored).
 
-Once configured, the documentation is published on every push to ``main``
-and available at https://fschwar4.github.io/saia_python/.
+Optionally enable the local ``pre-commit`` hooks (ruff lint + format plus basic
+hygiene) so commits are checked before they reach CI:
+
+.. code-block:: bash
+
+   pip install -e ".[lint]" pre-commit
+   pre-commit install
+
+
+One-time setup
+--------------
+
+These configure the automation and are done **once** per repository, not per
+release:
+
+- **GitHub Pages** — repository **Settings → Pages → Source: GitHub Actions**.
+  The docs then publish on every push to ``main`` at
+  https://fschwar4.github.io/saia_python/.
+- **PyPI Trusted Publisher** — at https://pypi.org/manage/account/publishing/,
+  add a publisher (a *pending publisher* before the project's first upload)
+  with project ``saia-python``, owner ``fschwar4``, repository ``saia_python``,
+  workflow ``publish.yml``, environment ``pypi``. This lets the Publish
+  workflow upload without a stored token.
+- **Zenodo archiving** — at https://zenodo.org/account/settings/github/, log in
+  with GitHub and toggle the ``saia_python`` repository **on** *before* the
+  next release, so each Release is archived and assigned a DOI.
 
 
 Versioning
 ----------
 
 The project follows `Semantic Versioning <https://semver.org/>`_
-(``MAJOR.MINOR.PATCH``). The version is defined in ``pyproject.toml``
-under ``[project] version`` and read at runtime via ``importlib.metadata``,
-exposed as ``saia_python.__version__``.
+(``MAJOR.MINOR.PATCH``). The version lives in ``pyproject.toml`` under
+``[project] version`` and is read at runtime via ``importlib.metadata`` as
+``saia_python.__version__``.
 
-Release procedure:
 
-1. Update the version in ``pyproject.toml``.
+Releasing
+---------
 
-2. Commit:
+The established release flow (assumes the one-time setup above is done).
+Publishing to PyPI happens through the **Publish** workflow on a GitHub
+Release — no manual upload to PyPI and no stored token.
 
-   .. code-block:: bash
+1. **Bump the version** in ``pyproject.toml`` and update
+   ``docs/CHANGELOG.md`` — promote the ``[Unreleased]`` entries into a dated
+   ``[X.Y.Z]`` section and update the compare links at the bottom.
 
-      git add pyproject.toml
-      git commit -m "Bump version to X.Y.Z"
-
-3. Create an annotated tag:
-
-   .. code-block:: bash
-
-      git tag -a vX.Y.Z -m "Release vX.Y.Z"
-
-4. Push:
+2. **Check locally** (CI enforces the same):
 
    .. code-block:: bash
 
-      git push origin main --tags
+      ruff check saia_python tests
+      ruff format --check saia_python tests
+      mypy
+      pytest --cov=saia_python
+      sphinx-build -b html -W docs docs/_build/html
+      python -m build && twine check --strict dist/*
 
-
-Publishing to PyPI
-------------------
-
-1. Install build tools:
-
-   .. code-block:: bash
-
-      pip install build twine
-
-2. Build source distribution and wheel:
+3. *(Optional)* **TestPyPI dry-run** — preview the upload and rendered
+   metadata before the real release. TestPyPI versions are immutable, so use a
+   throwaway suffix (e.g. ``X.Y.Z.dev1``) if you need to re-test:
 
    .. code-block:: bash
 
       python -m build
-
-3. Validate the package:
-
-   .. code-block:: bash
-
-      twine check dist/*
-
-4. Upload to `TestPyPI <https://test.pypi.org/>`_ (recommended first):
-
-   .. code-block:: bash
-
       twine upload --repository testpypi dist/*
+      # verify in a clean venv (dependencies resolve from real PyPI):
+      pip install --index-url https://test.pypi.org/simple/ \
+          --extra-index-url https://pypi.org/simple/ saia-python
 
-5. Upload to PyPI:
+4. **Commit, tag, and push:**
 
    .. code-block:: bash
 
-      twine upload dist/*
+      git add -A
+      git commit -m "Release X.Y.Z: <summary>"
+      git push origin main
+      git tag -a vX.Y.Z -m "saia-python X.Y.Z"
+      git push origin vX.Y.Z
+
+5. **Create the GitHub Release** for tag ``vX.Y.Z`` (for example
+   ``gh release create vX.Y.Z --notes-file <changelog-section>``). Publishing
+   the Release fires the **Publish** workflow, which uploads to PyPI via
+   Trusted Publishing; Zenodo simultaneously archives the Release and mints a
+   DOI.
+
+6. **Wire the DOI** — add the Zenodo concept and version DOIs to
+   ``CITATION.cff`` (``identifiers:``) and the DOI badge to ``README.md``,
+   then commit.

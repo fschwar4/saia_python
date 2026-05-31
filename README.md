@@ -5,9 +5,7 @@
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](https://github.com/fschwar4/saia_python/blob/main/LICENSE)
 [![Tests](https://github.com/fschwar4/saia_python/actions/workflows/tests.yml/badge.svg)](https://github.com/fschwar4/saia_python/actions/workflows/tests.yml)
 [![Docs](https://img.shields.io/badge/docs-online-blue.svg)](https://fschwar4.github.io/saia_python/)
-<!-- After enabling Zenodo (Settings → Integrations → GitHub) and cutting a release,
-     paste the DOI badge Zenodo provides, e.g.:
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX) -->
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20480724.svg)](https://doi.org/10.5281/zenodo.20480724)
 
 A Python wrapper for the [GWDG SAIA (Scalable AI Accelerator) platform](https://docs.hpc.gwdg.de/services/ai-services/saia/index.html) REST API.
 
