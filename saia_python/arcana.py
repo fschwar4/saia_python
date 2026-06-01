@@ -148,14 +148,21 @@ class ArcanaService:
         verb: str,
         desc: str,
         verbose: bool,
+        on_result: Callable[[Path, dict], None] | None = None,
     ) -> list[dict]:
         """Run ``action(path)`` over each file, tallying per-file status.
 
-        The shared skeleton behind :meth:`upload_directory` and
-        :meth:`delete_directory`: an optionally tqdm-wrapped loop that records
-        a ``{"file", "status", ["error"]}`` dict per item and prints a tally
-        when ``verbose``. Only the per-file ``action`` and the past-tense
-        ``verb`` (``"uploaded"`` / ``"deleted"``) differ between callers.
+        The shared skeleton behind :meth:`upload_directory`,
+        :meth:`upload_files`, and :meth:`delete_directory`: an optionally
+        tqdm-wrapped loop that records a ``{"file", "status", ["error"]}`` dict
+        per item and prints a tally when ``verbose``. Only the per-file
+        ``action`` and the past-tense ``verb`` (``"uploaded"`` / ``"deleted"``)
+        differ between callers.
+
+        If ``on_result`` is given it is called as ``on_result(path, entry)``
+        immediately after each file is processed (``entry`` is that file's
+        result dict), so callers can stream per-file provenance / transaction
+        logging without reimplementing the loop.
         """
         results = []
         for fp in progress_iter(files, desc=desc, unit="file"):
@@ -169,6 +176,8 @@ class ArcanaService:
             if verbose:
                 label = verb.capitalize() if entry["status"] == verb else "FAILED"
                 print(f"  {fp.name}  {label}")
+            if on_result is not None:
+                on_result(fp, entry)
             results.append(entry)
 
         succeeded = sum(1 for r in results if r["status"] == verb)
@@ -535,6 +544,7 @@ class ArcanaService:
         recursive: bool = False,
         overwrite: bool = False,
         verbose: bool = False,
+        on_result: Callable[[Path, dict], None] | None = None,
     ) -> list[dict]:
         """Upload all files in a directory to an arcana.
 
@@ -547,6 +557,10 @@ class ArcanaService:
                 (uses ``**/<pattern>``).
             overwrite: If ``True``, replace existing files with the same name.
             verbose: If ``True``, print per-file upload status.
+            on_result: Optional callback invoked as ``on_result(local_path,
+                entry)`` after each file (``entry`` is that file's
+                ``{"file", "status", ["error"]}`` dict), for inline per-file
+                provenance / transaction logging.
 
         Returns:
             A list of dicts with keys ``"file"`` (filename only),
@@ -560,6 +574,7 @@ class ArcanaService:
             verb="uploaded",
             desc="Uploading",
             verbose=verbose,
+            on_result=on_result,
         )
 
     def upload_files(
@@ -569,6 +584,7 @@ class ArcanaService:
         *,
         overwrite: bool = True,
         verbose: bool = False,
+        on_result: Callable[[Path, dict], None] | None = None,
     ) -> list[dict]:
         """Upload an explicit, caller-chosen list of files to an arcana.
 
@@ -587,6 +603,11 @@ class ArcanaService:
                 the typical caller has already decided these files are new or
                 changed.
             verbose: If ``True``, print per-file upload status.
+            on_result: Optional callback invoked as ``on_result(local_path,
+                entry)`` after each file (``entry`` is that file's
+                ``{"file", "status", ["error"]}`` dict). Lets a caller record
+                per-file provenance (e.g. a git SHA) or a transaction-log entry
+                as each upload completes, without reimplementing this loop.
 
         Returns:
             A list of ``{"file", "status", ["error"]}`` dicts — the same shape
@@ -599,6 +620,7 @@ class ArcanaService:
             verb="uploaded",
             desc="Uploading",
             verbose=verbose,
+            on_result=on_result,
         )
 
     def list_files(self, name: str) -> list[dict]:
@@ -697,6 +719,7 @@ class ArcanaService:
         pattern: str = "*",
         recursive: bool = False,
         verbose: bool = False,
+        on_result: Callable[[Path, dict], None] | None = None,
     ) -> list[dict]:
         """Delete files from an arcana that match filenames in a local directory.
 
@@ -711,6 +734,10 @@ class ArcanaService:
             pattern: Glob pattern to filter files (default ``"*"``).
             recursive: If ``True``, search subdirectories recursively.
             verbose: If ``True``, print per-file deletion status.
+            on_result: Optional callback invoked as ``on_result(local_path,
+                entry)`` after each file (``entry`` is that file's
+                ``{"file", "status", ["error"]}`` dict), for inline per-file
+                logging.
 
         Returns:
             A list of dicts with keys ``"file"`` (filename only),
@@ -724,6 +751,7 @@ class ArcanaService:
             verb="deleted",
             desc="Deleting",
             verbose=verbose,
+            on_result=on_result,
         )
 
     def sync_directory(
@@ -738,6 +766,7 @@ class ArcanaService:
         index: bool = True,
         index_wait: bool = True,
         verbose: bool = False,
+        on_result: Callable[[Path, dict], None] | None = None,
     ) -> dict:
         """Sync a local directory into an arcana under caller-defined rules.
 
@@ -748,6 +777,9 @@ class ArcanaService:
         index pass. ARCANA stores no content hash, so any content-change
         detection (e.g. SHA-256 against your own manifest) belongs in
         ``select``.
+
+        The single index pass is efficient because the server only (re)embeds
+        files that are not already ``INDEXED`` — see :meth:`generate_index`.
 
         Args:
             name: The arcana name or full ``owner/name`` ID.
@@ -767,6 +799,14 @@ class ArcanaService:
                 the sync — but only when something actually changed.
             index_wait: Forwarded to :meth:`generate_index` as ``wait``.
             verbose: If ``True``, print per-file actions and a summary.
+            on_result: Optional callback invoked as ``on_result(local_path,
+                entry)`` for each *local* file as it is uploaded, replaced, or
+                skipped (``entry`` mirrors the batch-helper shape:
+                ``{"file", "status", ["error"]}``, where ``status`` is one of
+                ``"uploaded"`` / ``"replaced"`` / ``"skipped"`` / ``"failed"``).
+                Lets callers record per-file provenance / transaction logs
+                inline. Not called for ``prune`` deletions (those are
+                remote-only).
 
         Returns:
             A report ``dict`` with keys ``"uploaded"``, ``"replaced"``,
@@ -810,18 +850,26 @@ class ArcanaService:
         for path, action in plan:
             if action == "skip":
                 report["skipped"].append(path.name)
+                if on_result is not None:
+                    on_result(path, {"file": path.name, "status": "skipped"})
                 continue
             overwrite = action == "replace"
             bucket = "replaced" if overwrite else "uploaded"
+            entry: dict = {"file": path.name}
             try:
                 self.upload(name, path, overwrite=overwrite)
                 report[bucket].append(path.name)
+                entry["status"] = bucket
                 if verbose:
                     print(f"  {path.name}  {bucket}")
             except Exception as e:
+                entry["status"] = "failed"
+                entry["error"] = str(e)
                 report["failed"].append({"file": path.name, "error": str(e)})
                 if verbose:
                     print(f"  {path.name}  FAILED ({e})")
+            if on_result is not None:
+                on_result(path, entry)
 
         if prune:
             local_names = {p.name for p in local_files}
@@ -881,6 +929,16 @@ class ArcanaService:
         Raises:
             TimeoutError: If ``wait=True`` and indexing does not complete
                 within ``timeout`` seconds.
+
+        Note:
+            Indexing is incremental on the server: files already at
+            ``index_status == "INDEXED"`` are skipped, so only files added or
+            replaced since the last index (an upload resets a file to
+            ``NOT_INDEXED``) are (re)embedded. This is why the efficient pattern
+            is *upload only the changed files, then call this once* — the single
+            whole-arcana trigger re-embeds just those. The library relies on
+            this skip-``INDEXED`` behavior; if the server ever stops skipping,
+            the call stays correct but re-embeds the whole arcana.
         """
         import threading
         import time
@@ -925,23 +983,45 @@ class ArcanaService:
             if e.status_code != 504:
                 raise
 
-        # Poll until indexing finishes
+        # Poll until indexing finishes. Tolerate transient transport failures on
+        # an individual poll (the index keeps building server-side) so a slow or
+        # dropped poll GET — now that control-plane calls carry a default
+        # timeout — cannot abort a long, still-progressing reindex. Only the
+        # overall ``timeout`` deadline ends the wait; each retry is paced by the
+        # poll_interval sleep, so a genuinely-down server still gives up at the
+        # deadline.
         deadline = time.monotonic() + timeout
         terminal = {"INDEXED", "ERROR", "NOT_INDEXED"}
         status = ""
+        last_error: Exception | None = None
 
         while time.monotonic() < deadline:
             time.sleep(poll_interval)
-            data = self.get(name)
+            try:
+                data = self.get(name)
+            except (
+                requests.exceptions.Timeout,
+                requests.exceptions.ConnectionError,
+            ) as e:
+                last_error = e  # transient — remember it, retry on the next poll
+                continue
+            last_error = None  # a successful poll clears any prior transient error
             idx = data.get("index_info") or {}
             status = idx.get("index_status", "")
             if status in terminal:
                 return data
 
-        raise TimeoutError(
-            f"Indexing did not complete within {timeout}s. "
-            f"Last status: {status}. Check with client.arcana.info(...)."
-        )
+        # Deadline exhausted. Surface whichever signal we actually have — the
+        # last-seen status (slow indexing) and/or the last transport error
+        # (polls that kept failing) — so the timeout is diagnosable rather than
+        # reporting an empty status.
+        msg = f"Indexing did not complete within {timeout}s."
+        if status:
+            msg += f" Last status: {status}."
+        if last_error is not None:
+            msg += f" Last poll error: {last_error!r}."
+        msg += " Check with client.arcana.info(...)."
+        raise TimeoutError(msg)
 
     def delete_index(self, name: str) -> dict | None:
         """Delete the index of an arcana.

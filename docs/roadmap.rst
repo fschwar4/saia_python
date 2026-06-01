@@ -66,3 +66,64 @@ Ecosystem Integration (v0.6)
 **Image generation service** (``saia_python/images.py``):
   Wrapper for ``POST /images/generations`` and ``POST /images/edits/``.
   Currently undocumented in the library.
+
+
+ARCANA incremental indexing (gated on backend)
+-----------------------------------------------
+
+Client passthroughs that become useful once the ARCANA server adds the matching
+API support; documented here so the work is ready to wire up. Today the index
+trigger is whole-arcana and ``FileOutSchema`` exposes no content hash, so the
+library relies on the server skipping already-``INDEXED`` files — the
+"upload only the changed files, then index once" pattern.
+
+**Scoped and forced reindex**:
+  ``generate_index(name, *, files=None, force=False)`` — once
+  ``POST .../generate-index`` accepts ``{"files": [...]}`` / ``{"force": true}``,
+  pass them through to (re)index only named files, or force a re-embed without
+  re-uploading identical bytes. ``sync_directory`` would then hand its changed
+  set (``uploaded`` + ``replaced``) to ``generate_index(files=...)`` for true
+  per-file indexing instead of a whole-arcana trigger.
+
+**Server-side change detection**:
+  Once ``FileOutSchema`` carries a ``content_sha256``, offer a built-in
+  hash-based ``select`` default for ``sync_directory`` (local SHA-256 vs. the
+  remote hash), removing the caller's own manifest. Valuable only paired with
+  scoped indexing.
+
+**Priority (from a production consumer)**:
+  Contract the skip-``INDEXED`` behavior and add ``force`` first; ship scoped
+  ``files=`` and ``content_sha256`` together; de-prioritize per-file
+  index-on-upload (it re-triggers once per file — the opposite of the
+  batch-then-index pattern).
+
+
+Unified transport-error exception (deferred)
+--------------------------------------------
+
+Now that control-plane calls carry a default timeout (a stalled call raises
+``requests.exceptions.Timeout`` / ``ConnectionError`` instead of hanging),
+callers catch *two* exception families: ``SAIAError`` for HTTP-status failures
+and the raw ``requests.*`` transport errors. Wrapping the transport errors in a
+``SAIAError`` subclass would collapse that to a single catch surface.
+
+**Status — deferred (low value for the current consumer)**:
+  The production ingestion consumer is ``requests``-native: it imports only
+  ``SAIAClient`` (catches no ``saia_python`` exceptions), and its
+  transport-drop detection is built directly on ``requests.exceptions.*`` plus
+  stdlib socket errors, walking the ``__cause__`` / ``__context__`` chain with a
+  regex fallback explicitly "for SDK-specific exception classes that don't
+  subclass ``requests.exceptions.*``." It already defends against wrapped
+  exceptions, so a unified type adds nothing for it — and a careless version
+  could regress it. The proposal's real audience is *simple* consumers that
+  would rather not touch ``requests`` at all.
+
+**Requirements if revisited** (must be strictly backward-compatible):
+  - **Dual-base the wrapper** — subclass *both* ``SAIAError`` and the underlying
+    ``requests.exceptions.Timeout`` / ``ConnectionError``, so existing
+    ``except requests.exceptions.*`` handlers keep matching.
+  - **Preserve the cause chain** — raise via ``raise SAIA... from exc`` so
+    consumers that walk ``__cause__`` / ``__context__`` still classify it.
+  - **Leave ``generate_index``'s poll-deadline ``TimeoutError`` (stdlib)
+    untouched** — consumers catch it directly; retyping it would silently break
+    that branch.

@@ -26,6 +26,12 @@ ARCANA (RAG), and document conversion services.
 
       Complete reference for all classes and functions.
 
+   .. grid-item-card:: Extensions
+      :link: extensions
+      :link-type: doc
+
+      Higher-level recipes built on the wrapper — e.g. ARCANA incremental sync.
+
    .. grid-item-card:: Development
       :link: development
       :link-type: doc
@@ -88,6 +94,7 @@ of Biological Networks (CIDBN) <https://uni-goettingen.de/de/608362.html>`_.
    quickstart
    explanations
    api/index
+   extensions
    development
    adr/index
    CHANGELOG

@@ -31,6 +31,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   connect and read phases, `None` disables) to tune or opt out of the
   control-plane request timeouts above. The long-running data-plane paths (chat
   completions, voice, document conversion) are intentionally left uncapped.
+- `on_result` per-file callback on `upload_files`, `upload_directory`,
+  `delete_directory`, and `sync_directory` — invoked as
+  `on_result(local_path, entry)` as each file is processed, so callers can
+  record per-file provenance (e.g. a git SHA) or a transaction-log entry inline,
+  without reimplementing the upload loop. (For `sync_directory`, fired for local
+  uploads/replaces/skips, not for `prune` deletions.)
+
+### Changed
+
+- `generate_index(wait=True)` now tolerates a transient transport error
+  (`requests.Timeout` / `ConnectionError`) on an individual poll and retries on
+  the next interval instead of aborting a long, still-progressing reindex; only
+  the overall `timeout` deadline ends the wait. Hardens the new default request
+  timeout against long index waits. On deadline exhaustion the raised
+  `TimeoutError` now includes the last-seen status and/or the last poll
+  transport error, so a poll that kept timing out is diagnosable.
+- Documented that ARCANA indexing is incremental — `generate_index` skips files
+  already `INDEXED`, so "upload only the changed files, then index once"
+  re-embeds just those. `sync_directory`'s single index pass and the library's
+  recommended workflow rely on this server behavior.
+- New "Extensions" docs section (between API Reference and Development), opening
+  with an "ARCANA incremental sync" how-to (`docs/arcana_incremental_sync.rst`):
+  two recipes — `sync_directory` with a SHA-256 `select`, and an explicit
+  `upload_files` + single `generate_index` — plus the idempotent-upload,
+  transport-drop, and one-reindex-at-a-time operational notes.
 
 ## [0.4.1] — 2026-06-01
 

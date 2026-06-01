@@ -155,6 +155,41 @@ class TestGenerateIndexTransportErrors:
         with pytest.raises(TimeoutError, match="did not complete"):
             svc.generate_index("my-arcana", poll_interval=0, timeout=0)
 
+    def test_transient_poll_timeout_is_tolerated(self):
+        """A dropped/slow individual poll GET must not abort a still-building
+        reindex — retry on the next poll, bounded by the overall timeout."""
+        svc = _make_service()
+        post_resp = MagicMock()
+        post_resp.status_code = 200
+        post_resp.ok = True
+        svc._session.post.return_value = post_resp
+        svc._session.get.side_effect = [
+            requests.exceptions.ReadTimeout("transient poll blip"),  # tolerated
+            _get_response("PENDING"),
+            _get_response("INDEXED"),
+        ]
+        result = svc.generate_index("my-arcana", poll_interval=0, timeout=10)
+        assert result["index_info"]["index_status"] == "INDEXED"
+        assert svc._session.get.call_count == 3
+
+    def test_persistent_poll_timeout_reports_last_error(self):
+        """If polls keep timing out until the deadline, the TimeoutError surfaces
+        the transport error instead of a misleading empty 'Last status'."""
+        svc = _make_service()
+        post_resp = MagicMock()
+        post_resp.status_code = 200
+        post_resp.ok = True
+        svc._session.post.return_value = post_resp
+        svc._session.get.side_effect = requests.exceptions.ReadTimeout(
+            "poll read timed out"
+        )
+        with pytest.raises(TimeoutError) as exc_info:
+            svc.generate_index("my-arcana", poll_interval=0.01, timeout=0.05)
+        msg = str(exc_info.value)
+        assert "did not complete" in msg
+        assert "poll read timed out" in msg  # the transport error is surfaced
+        assert "Last status" not in msg  # never got a successful status read
+
 
 def test_generate_index_wait_false_uses_dedicated_session(monkeypatch):
     """wait=False fires the trigger on its OWN Session (not the shared one)
@@ -380,3 +415,51 @@ class TestDefaultTimeout:
         assert by_file == {"a.txt": "failed", "b.txt": "deleted"}
         failed = next(r for r in results if r["status"] == "failed")
         assert "read timed out" in failed["error"]
+
+
+class TestOnResultHook:
+    """The per-file callback lets callers record provenance / transaction logs
+    without reimplementing the upload loop (downstream consumer feedback)."""
+
+    def test_upload_files_invokes_on_result_per_file_in_order(self, tmp_path):
+        svc = _make_service()
+        svc._session.put.return_value = _ok_response()
+        f1 = tmp_path / "a.txt"
+        f1.write_text("a")
+        f2 = tmp_path / "b.txt"
+        f2.write_text("b")
+        seen = []
+        svc.upload_files(
+            "kb", [f1, f2], on_result=lambda p, e: seen.append((p, e["status"]))
+        )
+        assert seen == [(f1, "uploaded"), (f2, "uploaded")]
+
+    def test_on_result_reports_failure_with_error(self, tmp_path):
+        svc = _make_service()
+        svc._session.put.return_value = _ok_response()
+        seen = []
+        svc.upload_files(
+            "kb", [tmp_path / "missing.txt"], on_result=lambda p, e: seen.append(e)
+        )
+        assert seen[0]["status"] == "failed"
+        assert "error" in seen[0]
+
+    def test_sync_directory_invokes_on_result_for_local_files(self, tmp_path):
+        svc = _make_service()
+        (tmp_path / "new.txt").write_text("n")
+        (tmp_path / "keep.txt").write_text("k")
+        svc.list_files = MagicMock(return_value=[{"name": "keep.txt"}])
+        svc.upload = MagicMock(return_value={"status": "ok"})
+        svc.generate_index = MagicMock(return_value=None)
+        seen = {}
+
+        def select(path, remote):
+            return "upload" if remote is None else "skip"
+
+        svc.sync_directory(
+            "kb",
+            tmp_path,
+            select=select,
+            on_result=lambda p, e: seen.__setitem__(p.name, e["status"]),
+        )
+        assert seen == {"new.txt": "uploaded", "keep.txt": "skipped"}
