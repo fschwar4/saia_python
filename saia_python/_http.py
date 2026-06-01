@@ -14,6 +14,15 @@ from ._streaming import SSEStream
 from .exceptions import raise_for_status
 from .rate_limits import parse_rate_limits
 
+# Default ``(connect, read)`` timeout in seconds for ARCANA management
+# ("control-plane") requests that do not pass their own. A plain
+# :class:`requests.Session` has NO default timeout, so a request the server
+# accepts but never answers — common while an arcana is locked mid-(re)index —
+# blocks forever on the socket read. Long-running "data-plane" calls (chat
+# completions, voice transcription, document conversion) deliberately do not
+# inherit this cap, since they can legitimately run for minutes.
+DEFAULT_TIMEOUT: tuple[float, float] = (10.0, 60.0)
+
 
 def new_session_like(template: requests.Session) -> requests.Session:
     """Return a fresh :class:`requests.Session` mirroring ``template``'s headers.

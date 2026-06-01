@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `ArcanaService` HTTP calls no longer hang forever when the server accepts a
+  request but never sends a response (common while an arcana is locked
+  mid-(re)index). Every ARCANA management request now carries a default
+  `(connect, read)` timeout of `(10, 60)` seconds, so a stalled call fails fast
+  with `requests.Timeout` — which propagates to the caller (batch helpers
+  record it per file and continue) — instead of blocking on the socket read.
+  Previously only `heartbeat` and `generate_index` passed a timeout; `list`,
+  `get`, `create`, `delete`, `list_files`, `delete_file`, `download_file`,
+  `upload`, and the `delete_directory` loop could each wedge a batch operation
+  (e.g. wiping a knowledge base before re-ingest) indefinitely.
+- The same no-timeout guard now also covers the other quick control-plane calls
+  on the shared session: `ModelsService.list()` / `list_raw()` (`GET /models`)
+  and the `SAIAClient.get_rate_limits()` probe (`GET /chat/completions`), which
+  could otherwise hang the same way.
+
+### Added
+
+- `timeout` parameter on `SAIAClient(...)`, `ArcanaService(...)`, and
+  `ModelsService(...)` (default `(10, 60)`; a single `float` applies to both the
+  connect and read phases, `None` disables) to tune or opt out of the
+  control-plane request timeouts above. The long-running data-plane paths (chat
+  completions, voice, document conversion) are intentionally left uncapped.
+
 ## [0.4.1] — 2026-06-01
 
 First release published to PyPI as

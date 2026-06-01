@@ -11,7 +11,7 @@ from urllib.parse import quote
 
 import requests
 
-from ._http import new_session_like, post_chat_completion
+from ._http import DEFAULT_TIMEOUT, new_session_like, post_chat_completion
 from ._streaming import SSEStream
 from ._util import progress_iter
 from .exceptions import APIError, raise_for_status
@@ -61,16 +61,51 @@ class ArcanaService:
         session: A :class:`requests.Session` (auth header will be overridden per-request).
         base_url: The SAIA API base URL (e.g. ``https://chat-ai.academiccloud.de/v1``).
         api_key: The raw API key (needed because ARCANA omits the ``Bearer`` prefix).
+        timeout: Default ``(connect, read)`` timeout in seconds applied to every
+            ARCANA management request that does not set its own. Guards against
+            the server accepting a request but never responding (e.g. while an
+            arcana is locked mid-(re)index), which would otherwise block forever
+            on the socket read. A single ``float`` applies to both phases; pass
+            ``None`` to disable. Defaults to ``(10, 60)``. The long-running chat
+            path (:meth:`chat`) is exempt.
     """
 
-    def __init__(self, session: requests.Session, base_url: str, api_key: str):
+    def __init__(
+        self,
+        session: requests.Session,
+        base_url: str,
+        api_key: str,
+        *,
+        timeout: float | tuple[float, float] | None = DEFAULT_TIMEOUT,
+    ):
         self._session = session
         self._base_url = base_url
         self._arcana_base = f"{self._base_url}{_ARCANA_PATH}"
         self._api_key = api_key
+        self._timeout = timeout
 
     def _headers(self, **extra) -> dict:
         return {"Authorization": self._api_key, "Accept": "application/json", **extra}
+
+    def _request(self, method: str, url: str, **kwargs) -> requests.Response:
+        """Issue a request on the shared session with a default timeout.
+
+        A plain :class:`requests.Session` has no default timeout, so any ARCANA
+        management call that forgets ``timeout=`` blocks forever on the socket
+        read when the server accepts the request but never responds — common
+        while an arcana is locked mid-(re)index. Routing every such call through
+        here injects :attr:`_timeout` unless an explicit ``timeout`` was passed
+        (so :meth:`heartbeat` and :meth:`generate_index` keep their own), so
+        calls fail fast with :class:`requests.Timeout` instead of hanging. That
+        error is *not* swallowed here — it propagates to the caller (the batch
+        helpers record it per file and carry on).
+
+        ``method`` is the lowercase HTTP verb (``"get"``, ``"post"``, ``"put"``,
+        ``"delete"``); dispatching through the verb attribute keeps the call
+        shape the rest of the code — and the tests — already rely on.
+        """
+        kwargs.setdefault("timeout", self._timeout)
+        return getattr(self._session, method)(url, **kwargs)
 
     @staticmethod
     def _format_arcana_line(a: dict, *, with_owner: bool = False) -> str:
@@ -153,8 +188,8 @@ class ArcanaService:
         Returns:
             The version string (e.g. ``"0.4.16"``).
         """
-        resp = self._session.get(
-            f"{self._arcana_base}/version", headers=self._headers()
+        resp = self._request(
+            "get", f"{self._arcana_base}/version", headers=self._headers()
         )
         raise_for_status(resp)
         return resp.json().get("version", "")
@@ -167,7 +202,8 @@ class ArcanaService:
         errors — it never raises).
         """
         try:
-            resp = self._session.get(
+            resp = self._request(
+                "get",
                 f"{self._arcana_base}/heartbeat",
                 headers=self._headers(),
                 timeout=10,
@@ -185,7 +221,8 @@ class ArcanaService:
         Returns:
             A dict with user profile fields.
         """
-        resp = self._session.get(
+        resp = self._request(
+            "get",
             f"{self._arcana_base}/user/me",
             headers=self._headers(),
         )
@@ -251,7 +288,8 @@ class ArcanaService:
         if append_uuid:
             name = f"{name}-{_uuid.uuid4()}"
 
-        resp = self._session.post(
+        resp = self._request(
+            "post",
             f"{self._arcana_base}/arcana/",
             headers={**self._headers(), "Content-Type": "application/json"},
             json={"name": name},
@@ -295,7 +333,8 @@ class ArcanaService:
         full_id = name
         name = extract_arcana_name(name)
 
-        resp = self._session.delete(
+        resp = self._request(
+            "delete",
             f"{self._arcana_base}/arcana/{quote(name, safe='')}",
             headers=self._headers(),
         )
@@ -317,7 +356,8 @@ class ArcanaService:
         Returns:
             A list of arcana dicts.
         """
-        resp = self._session.get(
+        resp = self._request(
+            "get",
             f"{self._arcana_base}/arcana/",
             headers=self._headers(),
         )
@@ -384,7 +424,8 @@ class ArcanaService:
             Arcana details dict.
         """
         name = extract_arcana_name(name)
-        resp = self._session.get(
+        resp = self._request(
+            "get",
             f"{self._arcana_base}/arcana/{quote(name, safe='')}",
             headers=self._headers(),
         )
@@ -469,13 +510,15 @@ class ArcanaService:
         base = f"{self._arcana_base}/arcana/{quote(name, safe='')}/files"
         with open(file_path, "rb") as f:
             if overwrite:
-                resp = self._session.put(
+                resp = self._request(
+                    "put",
                     f"{base}/{quote(file_path.name, safe='')}",
                     headers=self._headers(),
                     files={"file": (file_path.name, f)},
                 )
             else:
-                resp = self._session.post(
+                resp = self._request(
+                    "post",
                     f"{base}/",
                     headers=self._headers(),
                     files={"file": (file_path.name, f)},
@@ -588,7 +631,8 @@ class ArcanaService:
             has no per-file index call.
         """
         name = extract_arcana_name(name)
-        resp = self._session.get(
+        resp = self._request(
+            "get",
             f"{self._arcana_base}/arcana/{quote(name, safe='')}/files/",
             headers=self._headers(),
         )
@@ -609,7 +653,8 @@ class ArcanaService:
             The API response, or ``None`` if the response has no body.
         """
         name = extract_arcana_name(name)
-        resp = self._session.delete(
+        resp = self._request(
+            "delete",
             f"{self._arcana_base}/arcana/{quote(name, safe='')}/files/{quote(file_name, safe='')}",
             headers=self._headers(),
         )
@@ -631,7 +676,8 @@ class ArcanaService:
             The path the file was written to.
         """
         name = extract_arcana_name(name)
-        resp = self._session.get(
+        resp = self._request(
+            "get",
             f"{self._arcana_base}/arcana/{quote(name, safe='')}/files/{quote(file_name, safe='')}/download",
             headers=self._headers(),
             stream=True,
@@ -861,7 +907,7 @@ class ArcanaService:
 
         # Synchronous: fire the request, tolerate transport-level failures, then poll
         try:
-            resp = self._session.post(url, headers=self._headers(), timeout=30)
+            resp = self._request("post", url, headers=self._headers(), timeout=30)
             raise_for_status(resp)
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
             # The trigger almost certainly reached the server (the body
@@ -909,7 +955,8 @@ class ArcanaService:
             The API response, or ``None`` if the response has no body.
         """
         name = extract_arcana_name(name)
-        resp = self._session.delete(
+        resp = self._request(
+            "delete",
             f"{self._arcana_base}/arcana/{quote(name, safe='')}/delete-index",
             headers=self._headers(),
         )

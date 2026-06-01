@@ -30,7 +30,10 @@ def test_list_raw_returns_envelope_not_unwrapped():
     result = svc.list_raw()
     assert result["object"] == "list"  # envelope preserved, not unwrapped
     assert result["data"] == _ENVELOPE["data"]
-    session.get.assert_called_once_with("https://example.com/v1/models")
+    # GET /models (not POST), and carries the default timeout so it can't hang.
+    session.get.assert_called_once_with(
+        "https://example.com/v1/models", timeout=(10.0, 60.0)
+    )
 
 
 def test_list_unwraps_data_from_envelope():
@@ -48,3 +51,15 @@ def test_list_handles_bare_list_response():
     svc, _ = _service(bare)
     assert svc.list() == bare
     assert svc.list_raw() == bare
+
+
+def test_configured_timeout_is_forwarded():
+    """A custom timeout passed to the constructor reaches the GET /models call."""
+    session = MagicMock()
+    resp = MagicMock()
+    resp.ok = True
+    resp.json.return_value = _ENVELOPE
+    session.get.return_value = resp
+    svc = ModelsService(session, "https://example.com/v1", timeout=(3.0, 9.0))
+    svc.list_raw()
+    assert session.get.call_args.kwargs["timeout"] == (3.0, 9.0)

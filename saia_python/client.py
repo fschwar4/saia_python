@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import requests as _requests
 
+from ._http import DEFAULT_TIMEOUT
 from .arcana import ArcanaService
 from .auth import resolve_credentials
 from .chat import ChatService
@@ -30,6 +31,12 @@ class SAIAClient:
             hardcoded default (``https://chat-ai.academiccloud.de/v1``).
         key_file: Explicit path to a ``.saia_api`` or ``.env`` file.
             Ignored when ``api_key`` is provided.
+        timeout: Default ``(connect, read)`` timeout in seconds for ARCANA
+            management calls, forwarded to :class:`~saia_python.arcana.ArcanaService`.
+            Stops those calls from hanging forever when the server accepts a
+            request but never responds (e.g. while an arcana is locked
+            mid-(re)index). A single ``float`` applies to both phases; pass
+            ``None`` to disable. Defaults to ``(10, 60)``.
 
     Example::
 
@@ -48,8 +55,11 @@ class SAIAClient:
         api_key: str | None = None,
         base_url: str | None = None,
         key_file: str | None = None,
+        *,
+        timeout: float | tuple[float, float] | None = DEFAULT_TIMEOUT,
     ):
         self._api_key, self._base_url = resolve_credentials(api_key, base_url, key_file)
+        self._timeout = timeout
         self._session = _requests.Session()
         self._session.headers.update(
             {
@@ -84,14 +94,21 @@ class SAIAClient:
     def models(self) -> ModelsService:
         """Model listing service."""
         if self._models is None:
-            self._models = ModelsService(self._session, self._base_url)
+            self._models = ModelsService(
+                self._session, self._base_url, timeout=self._timeout
+            )
         return self._models
 
     @property
     def arcana(self) -> ArcanaService:
         """ARCANA/RAG service."""
         if self._arcana is None:
-            self._arcana = ArcanaService(self._session, self._base_url, self._api_key)
+            self._arcana = ArcanaService(
+                self._session,
+                self._base_url,
+                self._api_key,
+                timeout=self._timeout,
+            )
         return self._arcana
 
     @property
@@ -156,7 +173,9 @@ class SAIAClient:
                 (401/403). Other non-2xx statuses (notably the expected
                 400) are tolerated since they still carry the headers.
         """
-        resp = self._session.get(f"{self._base_url}/chat/completions")
+        resp = self._session.get(
+            f"{self._base_url}/chat/completions", timeout=self._timeout
+        )
         if resp.status_code in (401, 403):
             # The probe is *expected* to 400 (missing request body) but still
             # carries rate-limit headers. A 401/403 means the key is bad, so

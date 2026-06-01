@@ -17,6 +17,7 @@ def _make_service() -> ArcanaService:
     svc._base_url = "https://example.com/v1"
     svc._arcana_base = "https://example.com/v1/arcanas/api/v1"
     svc._api_key = "test"
+    svc._timeout = (10.0, 60.0)
     return svc
 
 
@@ -326,3 +327,56 @@ class TestSyncDirectory:
         svc.list_files = MagicMock(return_value=[])
         with pytest.raises(ValueError, match="select"):
             svc.sync_directory("my-arcana", tmp_path, select=lambda p, r: "bogus")
+
+
+class TestDefaultTimeout:
+    """Every ARCANA control-plane call must carry a timeout so a server that
+    accepts a request but never responds raises instead of hanging forever
+    (``requests.Session`` has no native default timeout)."""
+
+    def test_default_timeout_injected_when_unset(self):
+        svc = _make_service()
+        svc._session.delete.return_value = _ok_response()
+        svc.delete_file("my-arcana", "f.txt")
+        assert svc._session.delete.call_args.kwargs["timeout"] == (10.0, 60.0)
+
+    def test_explicit_call_timeout_is_preserved(self):
+        # heartbeat passes its own timeout=10; the default must not clobber it.
+        svc = _make_service()
+        resp = MagicMock()
+        resp.status_code = 204
+        svc._session.get.return_value = resp
+        assert svc.heartbeat() is True
+        assert svc._session.get.call_args.kwargs["timeout"] == 10
+
+    def test_configured_timeout_is_used(self):
+        svc = _make_service()
+        svc._timeout = (3.0, 12.0)
+        svc._session.get.return_value = _ok_response()
+        svc.list_files("my-arcana")
+        assert svc._session.get.call_args.kwargs["timeout"] == (3.0, 12.0)
+
+    def test_timeout_propagates_from_single_call(self):
+        """A single-file method does not swallow the timeout — it propagates."""
+        svc = _make_service()
+        svc._session.delete.side_effect = requests.exceptions.ReadTimeout(
+            "read timed out"
+        )
+        with pytest.raises(requests.exceptions.ReadTimeout):
+            svc.delete_file("my-arcana", "f.txt")
+
+    def test_batch_records_timeout_per_file_and_continues(self, tmp_path):
+        """In a batch, a per-file timeout is recorded and the loop carries on —
+        it neither hangs nor aborts the whole batch (the reported repro)."""
+        svc = _make_service()
+        (tmp_path / "a.txt").write_text("a")
+        (tmp_path / "b.txt").write_text("b")
+        svc._session.delete.side_effect = [
+            requests.exceptions.ReadTimeout("read timed out"),
+            _ok_response(),
+        ]
+        results = svc.delete_directory("my-arcana", tmp_path)
+        by_file = {r["file"]: r["status"] for r in results}
+        assert by_file == {"a.txt": "failed", "b.txt": "deleted"}
+        failed = next(r for r in results if r["status"] == "failed")
+        assert "read timed out" in failed["error"]

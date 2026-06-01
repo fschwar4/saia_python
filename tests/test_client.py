@@ -17,6 +17,7 @@ def _make_client() -> SAIAClient:
     client = SAIAClient.__new__(SAIAClient)
     client._base_url = "https://example.com/v1"
     client._session = MagicMock()
+    client._timeout = (10.0, 60.0)
     return client
 
 
@@ -57,3 +58,11 @@ def test_get_rate_limits_raises_on_403():
     client._session.get.return_value = _resp(403, text="Forbidden")
     with pytest.raises(AuthenticationError):
         client.get_rate_limits()
+
+
+def test_get_rate_limits_probe_carries_timeout():
+    """The probe GET must carry a timeout so a stalled server can't hang it."""
+    client = _make_client()
+    client._session.get.return_value = _resp(400)
+    client.get_rate_limits()
+    assert client._session.get.call_args.kwargs["timeout"] == (10.0, 60.0)

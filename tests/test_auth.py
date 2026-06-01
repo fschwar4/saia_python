@@ -330,6 +330,7 @@ class TestArcanaSummary:
         svc._base_url = "https://example.com/v1"
         svc._arcana_base = "https://example.com/v1/arcanas/api/v1"
         svc._api_key = "test"
+        svc._timeout = (10.0, 60.0)
 
         mock_resp = MagicMock()
         mock_resp.status_code = 200

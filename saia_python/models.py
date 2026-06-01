@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ._http import DEFAULT_TIMEOUT
 from ._util import progress_iter
 from .exceptions import raise_for_status
 
@@ -17,11 +18,24 @@ class ModelsService:
     Args:
         session: A :class:`requests.Session` with auth headers configured.
         base_url: The SAIA API base URL (e.g. ``https://chat-ai.academiccloud.de/v1``).
+        timeout: Default ``(connect, read)`` timeout in seconds for the
+            ``GET /models`` listing call, so it fails fast instead of hanging
+            forever when the server accepts the request but never responds. A
+            single ``float`` applies to both phases; pass ``None`` to disable.
+            Defaults to ``(10, 60)``. (The tool-capability probe keeps its own
+            per-request ``timeout``.)
     """
 
-    def __init__(self, session: requests.Session, base_url: str):
+    def __init__(
+        self,
+        session: requests.Session,
+        base_url: str,
+        *,
+        timeout: float | tuple[float, float] | None = DEFAULT_TIMEOUT,
+    ):
         self._session = session
         self._base_url = base_url
+        self._timeout = timeout
 
     def list_raw(self) -> dict:
         """Return the raw ``/models`` response envelope, as the API sent it.
@@ -39,7 +53,7 @@ class ModelsService:
             this is a dict of the form
             ``{"object": "list", "data": [...]}``.
         """
-        resp = self._session.get(f"{self._base_url}/models")
+        resp = self._session.get(f"{self._base_url}/models", timeout=self._timeout)
         raise_for_status(resp)
         return resp.json()
 
