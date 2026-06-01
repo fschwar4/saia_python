@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-06-02
+
 ### Fixed
 
 - `ArcanaService` HTTP calls no longer hang forever when the server accepts a
@@ -23,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on the shared session: `ModelsService.list()` / `list_raw()` (`GET /models`)
   and the `SAIAClient.get_rate_limits()` probe (`GET /chat/completions`), which
   could otherwise hang the same way.
+- Type-checking: `_streaming.iter_sse` normalizes `iter_lines` output to `str`
+  (also robust to the `bytes` the requests stub declares), and the
+  `list_tool_capable` probe body is typed `dict[str, Any]` — silencing two
+  errors a newer `mypy` / `types-requests` flags. No behavior change.
 
 ### Added
 
@@ -322,7 +328,8 @@ open-source project tooling and incremental-upload helpers for ARCANA.
   resolution with owner-prefix handling.
 - Sphinx documentation (PyData theme) and a unit test suite.
 
-[Unreleased]: https://github.com/fschwar4/saia_python/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/fschwar4/saia_python/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/fschwar4/saia_python/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/fschwar4/saia_python/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/fschwar4/saia_python/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/fschwar4/saia_python/compare/v0.2.0...v0.3.0

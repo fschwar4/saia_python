@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ._http import DEFAULT_TIMEOUT
 from ._util import progress_iter
@@ -131,15 +131,16 @@ class ModelsService:
         for mid in progress_iter(
             model_ids, desc="Probing models", unit="model", enabled=not verbose
         ):
+            body: dict[str, Any] = {
+                "model": mid,
+                "messages": _PROBE_MESSAGES,
+                "tools": _PROBE_TOOLS,
+                "max_tokens": 50,
+            }
             try:
                 resp = self._session.post(
                     f"{self._base_url}/chat/completions",
-                    json={
-                        "model": mid,
-                        "messages": _PROBE_MESSAGES,
-                        "tools": _PROBE_TOOLS,
-                        "max_tokens": 50,
-                    },
+                    json=body,
                     timeout=30,
                 )
                 data = resp.json()

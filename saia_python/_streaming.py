@@ -27,7 +27,10 @@ def iter_sse(response: requests.Response) -> Generator[dict, None, None]:
     """
     raise_for_status(response)
     try:
-        for line in response.iter_lines(decode_unicode=True):
+        for raw in response.iter_lines(decode_unicode=True):
+            # decode_unicode=True yields str at runtime, but the requests type
+            # stub still types iter_lines as bytes — normalize for both.
+            line = raw.decode("utf-8") if isinstance(raw, bytes) else raw
             if not line or not line.startswith("data:"):
                 continue
             payload = line[len("data:") :].strip()
