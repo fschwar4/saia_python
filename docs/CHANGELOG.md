@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Internal: unified the per-file batch executor. `sync_directory`'s apply pass
+  now reuses the same `_run_file_batch` loop as `upload_directory` /
+  `upload_files` / `delete_directory` instead of a parallel copy; the
+  categorized sync report is derived as a grouped view of the shared per-file
+  outcomes. No public API change. Two `verbose=True`-only output tweaks:
+  skipped files are now listed during a sync, and per-file failures now include
+  the error message across all batch helpers. See
+  `docs/proposals/batch-executor-unification.md`.
+
 ## [0.5.1] — 2026-06-02
 
 ### Fixed

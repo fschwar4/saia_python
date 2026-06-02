@@ -143,49 +143,72 @@ class ArcanaService:
     def _run_file_batch(
         self,
         files: list[Path],
-        action,
+        action: Callable[[Path], object],
         *,
-        verb: str,
+        default_status: str,
         desc: str,
         verbose: bool,
+        show_progress: bool = True,
+        print_summary: bool = True,
         on_result: Callable[[Path, dict], None] | None = None,
     ) -> list[dict]:
-        """Run ``action(path)`` over each file, tallying per-file status.
+        """Apply ``action`` to each file, collecting one outcome entry per file.
 
-        The shared skeleton behind :meth:`upload_directory`,
-        :meth:`upload_files`, and :meth:`delete_directory`: an optionally
-        tqdm-wrapped loop that records a ``{"file", "status", ["error"]}`` dict
-        per item and prints a tally when ``verbose``. Only the per-file
-        ``action`` and the past-tense ``verb`` (``"uploaded"`` / ``"deleted"``)
-        differ between callers.
+        The single executor behind every multi-file operation —
+        :meth:`upload_directory`, :meth:`upload_files`, :meth:`delete_directory`,
+        and the apply pass of :meth:`sync_directory`. It owns exactly the
+        concerns those share: iteration, an optional progress bar, per-file
+        error capture, the ``on_result`` callback, and the verbose tally. No
+        caller reimplements this loop.
 
-        If ``on_result`` is given it is called as ``on_result(path, entry)``
-        immediately after each file is processed (``entry`` is that file's
-        result dict), so callers can stream per-file provenance / transaction
-        logging without reimplementing the loop.
+        ``action(path)`` performs the work for one file. If it returns a ``str``
+        that value is recorded as the file's ``status`` (e.g. ``"replaced"`` vs
+        ``"uploaded"``); any other return value (an API response dict, ``None``)
+        records ``default_status``. Any exception is caught, recorded as
+        ``"failed"`` with the stringified error, and iteration continues.
+
+        Args:
+            default_status: Status recorded when ``action`` does not return a
+                ``str`` — the common upload/delete case, where the action
+                returns the API response.
+            show_progress: Wrap the loop in a tqdm bar (default). Pass ``False``
+                for callers that drive their own reporting (e.g.
+                :meth:`sync_directory`).
+            print_summary: Print the ``N/M files <status>`` tally when
+                ``verbose`` (default). Pass ``False`` for callers that print a
+                richer summary of their own.
+            on_result: If given, called as ``on_result(path, entry)`` after each
+                file (``entry`` is that file's ``{"file", "status", ["error"]}``
+                dict), so callers can stream per-file provenance / transaction
+                logging without reimplementing the loop.
         """
-        results = []
-        for fp in progress_iter(files, desc=desc, unit="file"):
+        iterator = (
+            progress_iter(files, desc=desc, unit="file") if show_progress else files
+        )
+        results: list[dict] = []
+        for fp in iterator:
             entry: dict = {"file": fp.name}
             try:
-                action(fp)
-                entry["status"] = verb
+                label = action(fp)
+                entry["status"] = label if isinstance(label, str) else default_status
             except Exception as e:
                 entry["status"] = "failed"
                 entry["error"] = str(e)
             if verbose:
-                label = verb.capitalize() if entry["status"] == verb else "FAILED"
-                print(f"  {fp.name}  {label}")
+                line = f"  {fp.name}  {entry['status']}"
+                if entry["status"] == "failed":
+                    line += f" ({entry['error']})"
+                print(line)
             if on_result is not None:
                 on_result(fp, entry)
             results.append(entry)
 
-        succeeded = sum(1 for r in results if r["status"] == verb)
-        failed = len(results) - succeeded
-        summary = f"{succeeded}/{len(results)} files {verb}"
-        if failed:
-            summary += f" ({failed} failed)"
-        if verbose:
+        if verbose and print_summary:
+            succeeded = sum(1 for r in results if r["status"] != "failed")
+            failed = len(results) - succeeded
+            summary = f"{succeeded}/{len(results)} files {default_status}"
+            if failed:
+                summary += f" ({failed} failed)"
             print(summary)
         return results
 
@@ -571,7 +594,7 @@ class ArcanaService:
         return self._run_file_batch(
             files,
             lambda fp: self.upload(name, fp, overwrite=overwrite),
-            verb="uploaded",
+            default_status="uploaded",
             desc="Uploading",
             verbose=verbose,
             on_result=on_result,
@@ -617,7 +640,7 @@ class ArcanaService:
         return self._run_file_batch(
             files,
             lambda fp: self.upload(name, fp, overwrite=overwrite),
-            verb="uploaded",
+            default_status="uploaded",
             desc="Uploading",
             verbose=verbose,
             on_result=on_result,
@@ -748,7 +771,7 @@ class ArcanaService:
         return self._run_file_batch(
             files,
             lambda fp: self.delete_file(name, fp.name),
-            verb="deleted",
+            default_status="deleted",
             desc="Deleting",
             verbose=verbose,
             on_result=on_result,
@@ -825,18 +848,44 @@ class ArcanaService:
         remote_files = cast(list, self.list_files(name))
         remote_by_name = {f["name"]: f for f in remote_files}
 
-        # Pass 1 — ask the caller's policy what to do with each local file.
+        # Pass 1 — policy. Ask the caller what to do with each local file,
+        # against the remote state as it is *before* any upload. Raises on a
+        # bad decision before any I/O is done.
         valid = {"upload", "replace", "skip"}
-        plan: list[tuple[Path, str]] = []
+        plan: dict[Path, str] = {}
         for path in local_files:
-            action = select(path, remote_by_name.get(path.name))
-            if action not in valid:
+            decision = select(path, remote_by_name.get(path.name))
+            if decision not in valid:
                 raise ValueError(
                     f"select() must return one of {sorted(valid)}; "
-                    f"got {action!r} for {path.name}"
+                    f"got {decision!r} for {path.name}"
                 )
-            plan.append((path, action))
+            plan[path] = decision
 
+        # Pass 2 — execute via the shared batch executor. The action maps each
+        # planned decision to the work plus the status label to record; "skip"
+        # does no I/O. Error capture, on_result, and per-file verbose output are
+        # the executor's job — sync only supplies the per-file decision.
+        def _apply(path: Path) -> str:
+            decision = plan[path]
+            if decision == "skip":
+                return "skipped"
+            self.upload(name, path, overwrite=(decision == "replace"))
+            return "replaced" if decision == "replace" else "uploaded"
+
+        entries = self._run_file_batch(
+            local_files,
+            _apply,
+            default_status="uploaded",
+            desc="Syncing",
+            verbose=verbose,
+            show_progress=False,  # sync prints its own richer summary below
+            print_summary=False,
+            on_result=on_result,
+        )
+
+        # Aggregate the flat outcomes into the categorized report — a groupby
+        # view of the entries, which is sync's own output contract.
         report: dict = {
             "uploaded": [],
             "replaced": [],
@@ -845,31 +894,11 @@ class ArcanaService:
             "failed": [],
             "index": None,
         }
-
-        # Pass 2 — apply the plan.
-        for path, action in plan:
-            if action == "skip":
-                report["skipped"].append(path.name)
-                if on_result is not None:
-                    on_result(path, {"file": path.name, "status": "skipped"})
-                continue
-            overwrite = action == "replace"
-            bucket = "replaced" if overwrite else "uploaded"
-            entry: dict = {"file": path.name}
-            try:
-                self.upload(name, path, overwrite=overwrite)
-                report[bucket].append(path.name)
-                entry["status"] = bucket
-                if verbose:
-                    print(f"  {path.name}  {bucket}")
-            except Exception as e:
-                entry["status"] = "failed"
-                entry["error"] = str(e)
-                report["failed"].append({"file": path.name, "error": str(e)})
-                if verbose:
-                    print(f"  {path.name}  FAILED ({e})")
-            if on_result is not None:
-                on_result(path, entry)
+        for e in entries:
+            if e["status"] == "failed":
+                report["failed"].append({"file": e["file"], "error": e["error"]})
+            else:
+                report[e["status"]].append(e["file"])
 
         if prune:
             local_names = {p.name for p in local_files}
