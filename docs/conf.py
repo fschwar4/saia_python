@@ -43,7 +43,10 @@ extensions = [
     "myst_parser",
 ]
 
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+# ``proposals/`` holds design records (not part of the rendered site); excluding
+# the folder keeps them out of the toctree so the ``-W`` build doesn't fail on an
+# "isn't included in any toctree" warning.
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "proposals/**"]
 
 # -- Napoleon (Google-style docstrings) --------------------------------------
 
