@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-06-02
+
+### Fixed
+
+- Document-conversion images are now retrievable. `ConversionResult.images`
+  documented the base64 payload under key `data`, but `/documents/convert`
+  returns it under `image`, so callers following the docs hit a `KeyError`.
+  The payload is now decoded at the API boundary.
+
+### Changed
+
+- `ConversionResult.images` is now a list of typed `ConversionImage`
+  (`filename`, `data: bytes`, `type`) instead of raw API dicts; `data` holds
+  the already-decoded image bytes. (Breaking: switch from dict-key access to
+  attribute access.)
+
+### Added
+
+- `ConversionResult.save_images(directory)` and `save_all(directory)` write the
+  extracted images (and, for `save_all`, the content) to disk — previously
+  `save()` only wrote the text content.
+- `ConversionImage` is exported from the top-level package.
+
 ## [0.5.0] — 2026-06-02
 
 ### Fixed

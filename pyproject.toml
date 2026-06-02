@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "saia-python"
-version = "0.5.0"
+version = "0.5.1"
 description = "Python wrapper for the GWDG SAIA platform REST API"
 readme = "README.md"
 requires-python = ">=3.10"

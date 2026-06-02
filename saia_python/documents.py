@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,6 +13,42 @@ from .exceptions import raise_for_status
 if TYPE_CHECKING:
     import requests
 
+# The Docling API returns each image's base64 payload under "image"; "data"
+# and "content" are accepted as fallbacks for robustness across API versions.
+_IMAGE_KEYS = ("image", "data", "content")
+
+
+@dataclass
+class ConversionImage:
+    """A single image extracted during a document conversion.
+
+    Attributes:
+        filename: Suggested file name, e.g. ``picture-1.png``.
+        data: The decoded image bytes (ready to write to disk).
+        type: The image kind reported by the API, e.g. ``picture``.
+    """
+
+    filename: str
+    data: bytes
+    type: str = ""
+
+    @classmethod
+    def from_api(cls, raw: dict, index: int = 0) -> ConversionImage:
+        """Build from a raw API image dict, normalising key and encoding.
+
+        The base64 payload is taken from ``image`` (falling back to
+        ``data``/``content``), any ``data:`` URI prefix is stripped, and the
+        result is decoded to bytes once, here at the API boundary.
+        """
+        blob = next((raw[k] for k in _IMAGE_KEYS if raw.get(k)), "")
+        if isinstance(blob, str) and blob.startswith("data:") and "," in blob:
+            blob = blob.split(",", 1)[1]
+        return cls(
+            filename=raw.get("filename") or f"image-{index + 1}.png",
+            data=base64.b64decode(blob) if blob else b"",
+            type=raw.get("type", ""),
+        )
+
 
 @dataclass
 class ConversionResult:
@@ -21,14 +58,15 @@ class ConversionResult:
         filename: The original document filename.
         response_type: The output format (``markdown``, ``html``, ``json``, or ``tokens``).
         content: The converted content as a string.
-        images: A list of extracted image dicts, each with ``type``,
-            ``filename``, and ``data`` (base64-encoded) keys.
+        images: The extracted images as :class:`ConversionImage` objects
+            (decoded ``bytes`` + ``filename``). Use :meth:`save_images` or
+            :meth:`save_all` to write them to disk.
     """
 
     filename: str
     response_type: str
     content: str
-    images: list[dict] = field(default_factory=list)
+    images: list[ConversionImage] = field(default_factory=list)
 
     def save(self, path: str | Path) -> Path:
         """Save the converted content to a file.
@@ -42,6 +80,52 @@ class ConversionResult:
         path = Path(path)
         path.write_text(self.content, encoding="utf-8")
         return path
+
+    def save_images(self, directory: str | Path) -> list[Path]:
+        """Write every extracted image into ``directory``.
+
+        Each :class:`ConversionImage` is written under its ``filename``;
+        decoding already happened at parse time.
+
+        Args:
+            directory: Target directory (created if missing).
+
+        Returns:
+            The list of written image paths (empty if there are no images).
+        """
+        directory = Path(directory)
+        directory.mkdir(parents=True, exist_ok=True)
+        written: list[Path] = []
+        for i, img in enumerate(self.images, start=1):
+            out_path = directory / (img.filename or f"image-{i}.png")
+            out_path.write_bytes(img.data)
+            written.append(out_path)
+        return written
+
+    def save_all(self, directory: str | Path, *, stem: str | None = None) -> list[Path]:
+        """Save the content file *and* all images into ``directory``.
+
+        The content is written as ``<stem>.<ext>`` where ``ext`` is inferred
+        from :attr:`response_type` (``markdown`` → ``md``) and ``stem`` defaults
+        to the source :attr:`filename` stem. Images are written via
+        :meth:`save_images`, so any ``picture-N.png`` links in the content
+        resolve next to it.
+
+        Args:
+            directory: Target directory (created if missing).
+            stem: Optional base name for the content file.
+
+        Returns:
+            All written paths, content file first.
+        """
+        directory = Path(directory)
+        directory.mkdir(parents=True, exist_ok=True)
+        ext = {"markdown": "md", "html": "html", "json": "json", "tokens": "txt"}.get(
+            self.response_type, "txt"
+        )
+        content_path = directory / f"{stem or Path(self.filename).stem}.{ext}"
+        content_path.write_text(self.content, encoding="utf-8")
+        return [content_path, *self.save_images(directory)]
 
     def __str__(self):
         n_img = len(self.images)
@@ -114,7 +198,10 @@ class DocumentService:
             filename=data.get("filename", file_path.name),
             response_type=data.get("response_type", response_type),
             content=content,
-            images=data.get("images", []),
+            images=[
+                ConversionImage.from_api(img, i)
+                for i, img in enumerate(data.get("images", []))
+            ],
         )
 
     def convert_to_markdown(self, file_path: str | Path, **kwargs) -> str:

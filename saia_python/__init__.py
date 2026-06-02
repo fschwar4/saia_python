@@ -36,7 +36,7 @@ from .auth import (
     resolve_base_url,
 )
 from .client import SAIAClient
-from .documents import ConversionResult
+from .documents import ConversionImage, ConversionResult
 from .exceptions import APIError, AuthenticationError, RateLimitError, SAIAError
 from .openai_compat import create_openai_client
 from .rate_limits import RateLimitInfo, parse_rate_limits
@@ -92,6 +92,7 @@ __all__ = [
     "get_rate_limits",
     "convert_document",
     "ConversionResult",
+    "ConversionImage",
 ]
 
 
