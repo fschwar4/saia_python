@@ -7,7 +7,7 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ._http import RetryPolicy, coerce_retry, execute, new_session_like
+from ._http import RetryPolicy, coerce_retry, execute, new_session_like, resolve_retry
 from .exceptions import raise_for_status
 
 if TYPE_CHECKING:
@@ -41,6 +41,7 @@ class VoiceService:
         response_format: str = "text",
         language: str | None = None,
         wait: bool = True,
+        retry: RetryPolicy | bool | None = None,
     ) -> str | concurrent.futures.Future[str]:
         """Transcribe an audio file to text.
 
@@ -78,6 +79,7 @@ class VoiceService:
             response_format=response_format,
             language=language,
             wait=wait,
+            retry=retry,
         )
 
     def translate(
@@ -87,6 +89,7 @@ class VoiceService:
         model: str = "whisper-large-v2",
         response_format: str = "text",
         wait: bool = True,
+        retry: RetryPolicy | bool | None = None,
     ) -> str | concurrent.futures.Future[str]:
         """Translate an audio file to English text.
 
@@ -109,6 +112,7 @@ class VoiceService:
             model=model,
             response_format=response_format,
             wait=wait,
+            retry=retry,
         )
 
     def _new_session(self) -> requests.Session:
@@ -131,8 +135,10 @@ class VoiceService:
         response_format: str,
         language: str | None = None,
         wait: bool = True,
+        retry: RetryPolicy | bool | None = None,
     ) -> str | concurrent.futures.Future[str]:
         file_path = Path(file_path)
+        policy = resolve_retry(self._retry, retry)
 
         def _send(session: requests.Session) -> str:
             data = {"model": model, "response_format": response_format}
@@ -146,7 +152,7 @@ class VoiceService:
                 session,
                 "post",
                 f"{self._base_url}{endpoint}",
-                policy=self._retry,
+                policy=policy,
                 idempotent=True,
                 data=data,
                 files={"file": file_field},

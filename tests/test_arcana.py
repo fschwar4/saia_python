@@ -5,8 +5,9 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 
+from saia_python._http import RetryPolicy
 from saia_python.arcana import ArcanaService
-from saia_python.exceptions import APIError
+from saia_python.exceptions import APIError, RateLimitError
 
 
 def _make_service() -> ArcanaService:
@@ -18,6 +19,7 @@ def _make_service() -> ArcanaService:
     svc._arcana_base = "https://example.com/v1/arcanas/api/v1"
     svc._api_key = "test"
     svc._timeout = (10.0, 60.0)
+    svc._retry = RetryPolicy()
     return svc
 
 
@@ -42,6 +44,54 @@ def _http_error_response(status_code: int, text: str) -> MagicMock:
     resp.headers = {}
     resp.json.side_effect = ValueError("no json body")
     return resp
+
+
+def _resp_429(*, reset=None, remaining_hour=None) -> MagicMock:
+    """Build a 429 response, optionally carrying a reset / window header."""
+    resp = MagicMock()
+    resp.status_code = 429
+    resp.ok = False
+    resp.text = "rate limited"
+    headers = {}
+    if reset is not None:
+        headers["ratelimit-reset"] = reset
+    if remaining_hour is not None:
+        headers["x-ratelimit-remaining-hour"] = remaining_hour
+    resp.headers = headers
+    resp.json.return_value = {"detail": "rate limited"}
+    return resp
+
+
+class TestControlPlaneRetry:
+    """Phase 3 — control-plane calls share the execute() seam: idempotent reads
+    inherit the retry policy, mutations never auto-retry, and heartbeat opts out.
+
+    No real sleeps here: each case fails fast (mutation / opted-out / long
+    window), so the retry-with-wait path stays covered by test_transport_policy.
+    """
+
+    def test_mutation_not_retried_on_429(self):
+        svc = _make_service()
+        # A normally-retryable 429 (reset within cap) — but create is a mutation,
+        # so it must surface immediately, with no retry and no sleep.
+        svc._session.post.return_value = _resp_429(reset="5")
+        with pytest.raises(RateLimitError):
+            svc.create("kb", append_uuid=False)
+        assert svc._session.post.call_count == 1
+
+    def test_heartbeat_does_not_retry_429(self):
+        svc = _make_service()
+        svc._session.get.return_value = _resp_429(reset="5")
+        assert svc.heartbeat() is False
+        assert svc._session.get.call_count == 1
+
+    def test_idempotent_read_fails_fast_on_long_window(self):
+        svc = _make_service()
+        # GET is idempotent, but a zeroed hour window can't be timed → fail fast.
+        svc._session.get.return_value = _resp_429(remaining_hour="0")
+        with pytest.raises(RateLimitError):
+            svc.list()
+        assert svc._session.get.call_count == 1
 
 
 class TestGenerateIndexTransportErrors:

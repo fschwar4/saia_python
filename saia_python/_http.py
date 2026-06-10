@@ -81,6 +81,14 @@ def coerce_retry(retry: RetryPolicy | bool | None) -> RetryPolicy:
     return RetryPolicy()
 
 
+def resolve_retry(
+    default: RetryPolicy, override: RetryPolicy | bool | None
+) -> RetryPolicy:
+    """Pick the policy for one call: the per-call ``override`` when given, else
+    the service ``default``. ``None`` means "use the default"."""
+    return default if override is None else coerce_retry(override)
+
+
 def _jitter(policy: RetryPolicy) -> float:
     low, high = policy.jitter
     return random.uniform(low, high) if high > low else low

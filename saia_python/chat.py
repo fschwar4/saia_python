@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._http import RetryPolicy, coerce_retry, post_chat_completion
+from ._http import RetryPolicy, coerce_retry, post_chat_completion, resolve_retry
 from ._streaming import SSEStream
 
 if TYPE_CHECKING:
@@ -39,6 +39,7 @@ class ChatService:
         top_p: float | None = None,
         max_tokens: int | None = None,
         stream: bool = False,
+        retry: RetryPolicy | bool | None = None,
         **kwargs,
     ) -> dict | SSEStream:
         """Send a chat completion request.
@@ -73,7 +74,7 @@ class ChatService:
             f"{self._base_url}/chat/completions",
             body,
             stream=stream,
-            policy=self._retry,
+            policy=resolve_retry(self._retry, retry),
         )
 
     def __repr__(self):

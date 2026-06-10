@@ -1,6 +1,6 @@
 # Proposal: Transport-policy layer for rate-limit handling (default-on, opt-out)
 
-**Status:** Phase 1 implemented (2026-06-02) · **Scope:** `saia_python` client / session dispatch layer · **Type:** default-on feature + a small architectural seam
+**Status:** Phases 1 & 3 implemented (2026-06-02; Phase 2 pacing pending) · **Scope:** `saia_python` client / session dispatch layer · **Type:** default-on feature + a small architectural seam
 **Supersedes:** the earlier `rate-limit-handling` draft (absorbed below — reference impl preserved in §12).
 **Relates to:** [ADR-0002](../adr/0002-rate-limit-metadata-on-responses.md) (rate-limit metadata on responses),
 [ADR-0004](../adr/0004-non-blocking-operations-via-futures.md) (non-blocking via Futures + dedicated Sessions),

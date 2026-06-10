@@ -15,6 +15,7 @@ from saia_python._http import (
     coerce_retry,
     execute,
     post_chat_completion,
+    resolve_retry,
 )
 from saia_python._streaming import SSEStream
 from saia_python.exceptions import RateLimitError
@@ -71,6 +72,19 @@ class TestCoerceAndApplies:
 
     def test_applies_off_never(self):
         assert RetryPolicy(on_rate_limit=False).applies(idempotent=True) is False
+
+
+class TestResolveRetry:
+    def test_none_uses_default(self):
+        default = RetryPolicy(max_retries=9)
+        assert resolve_retry(default, None) is default
+
+    def test_false_disables_for_this_call(self):
+        assert resolve_retry(RetryPolicy(), False).on_rate_limit is False
+
+    def test_policy_override_wins(self):
+        custom = RetryPolicy(max_waiting_time=180)
+        assert resolve_retry(RetryPolicy(), custom) is custom
 
 
 class TestPlan:

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from saia_python._http import RetryPolicy
 from saia_python.arcana import ArcanaService, extract_arcana_name
 from saia_python.auth import load_api_key, load_arcana_ids, load_username
 
@@ -331,6 +332,7 @@ class TestArcanaSummary:
         svc._arcana_base = "https://example.com/v1/arcanas/api/v1"
         svc._api_key = "test"
         svc._timeout = (10.0, 60.0)
+        svc._retry = RetryPolicy()
 
         mock_resp = MagicMock()
         mock_resp.status_code = 200

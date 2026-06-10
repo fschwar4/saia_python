@@ -15,8 +15,10 @@ from ._http import (
     DEFAULT_TIMEOUT,
     RetryPolicy,
     coerce_retry,
+    execute,
     new_session_like,
     post_chat_completion,
+    resolve_retry,
 )
 from ._streaming import SSEStream
 from ._util import progress_iter
@@ -95,25 +97,45 @@ class ArcanaService:
     def _headers(self, **extra) -> dict:
         return {"Authorization": self._api_key, "Accept": "application/json", **extra}
 
-    def _request(self, method: str, url: str, **kwargs) -> requests.Response:
-        """Issue a request on the shared session with a default timeout.
+    def _request(
+        self,
+        method: str,
+        url: str,
+        *,
+        idempotent: bool = True,
+        retry: RetryPolicy | bool | None = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Issue a control-plane request through the shared :func:`execute` seam.
 
-        A plain :class:`requests.Session` has no default timeout, so any ARCANA
-        management call that forgets ``timeout=`` blocks forever on the socket
-        read when the server accepts the request but never responds — common
-        while an arcana is locked mid-(re)index. Routing every such call through
-        here injects :attr:`_timeout` unless an explicit ``timeout`` was passed
-        (so :meth:`heartbeat` and :meth:`generate_index` keep their own), so
-        calls fail fast with :class:`requests.Timeout` instead of hanging. That
-        error is *not* swallowed here — it propagates to the caller (the batch
-        helpers record it per file and carry on).
+        Supplies the two control-plane defaults and delegates the actual dispatch
+        and 429 retry to :func:`execute`, so the data plane and the control plane
+        share one dispatch seam:
 
-        ``method`` is the lowercase HTTP verb (``"get"``, ``"post"``, ``"put"``,
-        ``"delete"``); dispatching through the verb attribute keeps the call
-        shape the rest of the code — and the tests — already rely on.
+        * **Timeout** — a plain :class:`requests.Session` has no default timeout,
+          so a management call that forgets ``timeout=`` blocks forever when the
+          server accepts a request but never responds (common while an arcana is
+          locked mid-(re)index). :attr:`_timeout` is injected unless the caller
+          passed its own (so :meth:`heartbeat` and :meth:`generate_index` keep
+          theirs).
+        * **Retry** — idempotent reads inherit the client :class:`RetryPolicy`
+          and survive a transient 429; mutations pass ``idempotent=False`` so
+          they are never auto-retried. ``retry`` overrides the policy for one
+          call (:meth:`heartbeat` passes ``retry=False`` so a liveness probe
+          never blocks).
+
+        ``method`` is the lowercase HTTP verb (``"get"`` / ``"post"`` / ``"put"``
+        / ``"delete"``).
         """
         kwargs.setdefault("timeout", self._timeout)
-        return getattr(self._session, method)(url, **kwargs)
+        return execute(
+            self._session,
+            method,
+            url,
+            policy=resolve_retry(self._retry, retry),
+            idempotent=idempotent,
+            **kwargs,
+        )
 
     @staticmethod
     def _format_arcana_line(a: dict, *, with_owner: bool = False) -> str:
@@ -247,6 +269,7 @@ class ArcanaService:
                 f"{self._arcana_base}/heartbeat",
                 headers=self._headers(),
                 timeout=10,
+                retry=False,
             )
             return resp.status_code == 204
         except Exception:
@@ -333,6 +356,7 @@ class ArcanaService:
             f"{self._arcana_base}/arcana/",
             headers={**self._headers(), "Content-Type": "application/json"},
             json={"name": name},
+            idempotent=False,
         )
         raise_for_status(resp)
 
@@ -377,6 +401,7 @@ class ArcanaService:
             "delete",
             f"{self._arcana_base}/arcana/{quote(name, safe='')}",
             headers=self._headers(),
+            idempotent=False,
         )
         raise_for_status(resp)
 
@@ -555,6 +580,7 @@ class ArcanaService:
                     f"{base}/{quote(file_path.name, safe='')}",
                     headers=self._headers(),
                     files={"file": (file_path.name, f)},
+                    idempotent=False,
                 )
             else:
                 resp = self._request(
@@ -562,6 +588,7 @@ class ArcanaService:
                     f"{base}/",
                     headers=self._headers(),
                     files={"file": (file_path.name, f)},
+                    idempotent=False,
                 )
         raise_for_status(resp)
         return _json_or_none(resp)
@@ -710,6 +737,7 @@ class ArcanaService:
             "delete",
             f"{self._arcana_base}/arcana/{quote(name, safe='')}/files/{quote(file_name, safe='')}",
             headers=self._headers(),
+            idempotent=False,
         )
         raise_for_status(resp)
         return _json_or_none(resp)
@@ -1002,7 +1030,9 @@ class ArcanaService:
 
         # Synchronous: fire the request, tolerate transport-level failures, then poll
         try:
-            resp = self._request("post", url, headers=self._headers(), timeout=30)
+            resp = self._request(
+                "post", url, headers=self._headers(), timeout=30, idempotent=False
+            )
             raise_for_status(resp)
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
             # The trigger almost certainly reached the server (the body
@@ -1076,6 +1106,7 @@ class ArcanaService:
             "delete",
             f"{self._arcana_base}/arcana/{quote(name, safe='')}/delete-index",
             headers=self._headers(),
+            idempotent=False,
         )
         raise_for_status(resp)
         return _json_or_none(resp)
@@ -1175,6 +1206,7 @@ class ArcanaService:
         temperature: float | None = None,
         max_tokens: int | None = None,
         stream: bool = False,
+        retry: RetryPolicy | bool | None = None,
         **kwargs,
     ) -> dict | SSEStream:
         """Chat with RAG context from an arcana.
@@ -1219,7 +1251,7 @@ class ArcanaService:
             body,
             headers=headers,
             stream=stream,
-            policy=self._retry,
+            policy=resolve_retry(self._retry, retry),
         )
 
     def __repr__(self):

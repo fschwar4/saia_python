@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ._http import RetryPolicy, coerce_retry, execute
+from ._http import RetryPolicy, coerce_retry, execute, resolve_retry
 from .exceptions import raise_for_status
 
 if TYPE_CHECKING:
@@ -167,6 +167,7 @@ class DocumentService:
         response_type: str = "markdown",
         extract_tables_as_images: bool | None = None,
         image_resolution_scale: int | None = None,
+        retry: RetryPolicy | bool | None = None,
     ) -> ConversionResult:
         """Convert a document using the Docling service.
 
@@ -195,7 +196,7 @@ class DocumentService:
             self._session,
             "post",
             f"{self._base_url}/documents/convert",
-            policy=self._retry,
+            policy=resolve_retry(self._retry, retry),
             idempotent=True,
             params=params,
             files={"document": document},
