@@ -62,3 +62,7 @@ that the stream still yields chunks.
 The formatted, human-readable table (`str(RateLimitInfo)`) remains available via
 `client.get_rate_limits()`. Relates to ADR-0004 — the `SSEStream` wrapper is
 also where streaming-response cleanup lives.
+
+The passive-by-default stance recorded here is **amended by
+[ADR-0006](0006-transport-policy-rate-limit-handling.md)**, which makes the
+library retry 429s by default (opt-out); the metadata decision itself stands.

@@ -19,7 +19,7 @@ authors:
       Göttingen Campus Institute for Dynamics of Biological
       Networks (CIDBN), University of Göttingen, Göttingen,
       Germany
-version: 0.5.0
+version: 0.6.0
 date-released: "2026-06-02"
 license: AGPL-3.0-only
 repository-code: "https://github.com/fschwar4/saia_python"

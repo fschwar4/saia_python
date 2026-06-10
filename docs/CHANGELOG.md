@@ -7,8 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-06-02
+
+### Added
+
+- Opt-in-by-default rate-limit handling: `SAIAClient(retry=...)` and the new
+  exported `RetryPolicy` retry HTTP 429 at the session dispatch seam for
+  idempotent calls (chat, ARCANA chat, `documents.convert`, voice, and ARCANA
+  control-plane reads). They wait out a server reset within `max_waiting_time`
+  (default 60 s) and fail fast on longer windows, with a bounded blind fallback
+  (31 s ×2) when no reset header is present. Streaming retries only the opening
+  429, never mid-stream. Per-call override via `retry=` (`False` disables, a
+  `RetryPolicy` tunes). See ADR-0006 and `docs/proposals/rate-limit-handling.md`.
+
 ### Changed
 
+- A 429 on an idempotent call is now **retried by default** instead of
+  immediately raising `RateLimitError` (amends ADR-0002's passive default; opt
+  out with `SAIAClient(retry=False)`). `RateLimitError` is still raised when
+  retry is disabled, the budget is exhausted, or a long window is exhausted.
 - Internal: unified the per-file batch executor. `sync_directory`'s apply pass
   now reuses the same `_run_file_batch` loop as `upload_directory` /
   `upload_files` / `delete_directory` instead of a parallel copy; the
@@ -362,7 +379,9 @@ open-source project tooling and incremental-upload helpers for ARCANA.
   resolution with owner-prefix handling.
 - Sphinx documentation (PyData theme) and a unit test suite.
 
-[Unreleased]: https://github.com/fschwar4/saia_python/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/fschwar4/saia_python/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/fschwar4/saia_python/compare/v0.5.1...v0.6.0
+[0.5.1]: https://github.com/fschwar4/saia_python/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/fschwar4/saia_python/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/fschwar4/saia_python/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/fschwar4/saia_python/compare/v0.3.0...v0.4.0
