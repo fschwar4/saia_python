@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `examples/arcana_frontmatter_repro.py` — self-contained, library-independent
+  reproduction (for the GWDG ARCANA team) showing that the YAML front matter of
+  an uploaded markdown file does not survive retrieval: the `References:` block
+  returns the chunk body verbatim but strips the metadata header, and no
+  response field carries it. The test header mirrors the documented Docling
+  "Markdown Plus" metadata-header example field for field. Verified 2026-06-10
+  against ARCANA API 0.4.18 via both the OpenAI SDK and a plain HTTP POST; the
+  stored file itself — see the `/download` endpoint — still contains the front
+  matter. The raw responses are saved as
+  `examples/arcana_frontmatter_response_*.json` (committed as frozen evidence),
+  and the companion notebook `examples/arcana_frontmatter_repro.ipynb` walks
+  the same steps interactively with the full response JSON shown per step.
+
 ## [0.6.0] — 2026-06-02
 
 ### Added
