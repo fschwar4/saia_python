@@ -152,6 +152,8 @@ Separation of concerns: the **call site owns semantics** (`idempotent=`), the **
 
 An optional client-side throttle (min-interval or token bucket targeting `< limit/min`) so batch jobs self-pace and rarely hit 429 at all; reactive retry remains the safety net. Thread-safe (lock), jitter applied.
 
+**Adaptive limit (constraint).** The pace target must **not** be hard-coded — the account quota can change (e.g. a granted increase from 30 to 60/min). It must be configurable, and *ideally* derived from the server-reported `x-ratelimit-limit-*` headers, which are already parsed into `RateLimitInfo` on every response. A pacer that reads the observed limit and targets a fraction of it (e.g. ~90%) honors a quota change automatically, with no code or config edit; an explicit `target_rpm`, when given, overrides the observed value.
+
 ## 9. Public API (default ON)
 
 ```python

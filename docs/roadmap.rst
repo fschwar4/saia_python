@@ -127,3 +127,27 @@ and the raw ``requests.*`` transport errors. Wrapping the transport errors in a
   - **Leave ``generate_index``'s poll-deadline ``TimeoutError`` (stdlib)
     untouched** — consumers catch it directly; retyping it would silently break
     that branch.
+
+
+Adaptive rate-limit pacing (deferred)
+----------------------------------------
+
+Reactive 429 retry shipped in v0.6.0 (see ADR-0006); *proactive* pacing — a
+client-side throttle that spaces requests to stay under the limit so a 429 is
+rarely hit at all — is deferred. Reactive retry remains the safety net, so most
+workloads need nothing more.
+
+**Status — deferred (no implementation planned)**:
+  Only sustained, high-throughput batch jobs that constantly bounce off the
+  per-minute limit would benefit; ordinary use is well served by the shipped
+  reactive retry. Parked until a workload actually needs it.
+
+**Constraint when revisited — the limit must be adaptable**:
+  The account quota can change (a granted increase from, e.g., 30 to 60 per
+  minute), so the pace target must **not** be hard-coded. It must be
+  configurable *and* ideally derived from the server-reported
+  ``x-ratelimit-limit-*`` headers — already parsed into ``RateLimitInfo`` on
+  every response — so a quota increase is honored automatically, with no code or
+  config change. Target a fraction (~90%) of the observed limit; an explicit
+  ``target_rpm`` overrides it. Design detail lives in
+  ``docs/proposals/rate-limit-handling.md`` (§8).
