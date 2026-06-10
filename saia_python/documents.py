@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ._http import RetryPolicy, coerce_retry, execute
 from .exceptions import raise_for_status
 
 if TYPE_CHECKING:
@@ -148,9 +149,16 @@ class DocumentService:
         base_url: The SAIA API base URL.
     """
 
-    def __init__(self, session: requests.Session, base_url: str):
+    def __init__(
+        self,
+        session: requests.Session,
+        base_url: str,
+        *,
+        retry: RetryPolicy | bool | None = None,
+    ):
         self._session = session
         self._base_url = base_url
+        self._retry = coerce_retry(retry)
 
     def convert(
         self,
@@ -181,12 +189,17 @@ class DocumentService:
         if image_resolution_scale is not None:
             params["image_resolution_scale"] = image_resolution_scale
 
-        with open(file_path, "rb") as f:
-            resp = self._session.post(
-                f"{self._base_url}/documents/convert",
-                params=params,
-                files={"document": (file_path.name, f)},
-            )
+        # Read the document once into bytes so a 429 retry can re-send it.
+        document = (file_path.name, file_path.read_bytes())
+        resp = execute(
+            self._session,
+            "post",
+            f"{self._base_url}/documents/convert",
+            policy=self._retry,
+            idempotent=True,
+            params=params,
+            files={"document": document},
+        )
         raise_for_status(resp)
         data = resp.json()
 

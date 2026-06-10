@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import requests as _requests
 
-from ._http import DEFAULT_TIMEOUT
+from ._http import DEFAULT_TIMEOUT, RetryPolicy, coerce_retry
 from .arcana import ArcanaService
 from .auth import resolve_credentials
 from .chat import ChatService
@@ -37,6 +37,11 @@ class SAIAClient:
             request but never responds (e.g. while an arcana is locked
             mid-(re)index). A single ``float`` applies to both phases; pass
             ``None`` to disable. Defaults to ``(10, 60)``.
+        retry: Rate-limit handling policy (:class:`~saia_python.RetryPolicy`),
+            forwarded to the data-plane services (chat, ARCANA chat, documents,
+            voice). **On by default** — a 429 on an idempotent call is waited
+            out and retried within bounds. Pass ``False`` to disable, or a
+            ``RetryPolicy`` to tune it (e.g. ``max_waiting_time``).
 
     Example::
 
@@ -57,9 +62,11 @@ class SAIAClient:
         key_file: str | None = None,
         *,
         timeout: float | tuple[float, float] | None = DEFAULT_TIMEOUT,
+        retry: RetryPolicy | bool | None = None,
     ):
         self._api_key, self._base_url = resolve_credentials(api_key, base_url, key_file)
         self._timeout = timeout
+        self._retry = coerce_retry(retry)
         self._session = _requests.Session()
         self._session.headers.update(
             {
@@ -80,14 +87,14 @@ class SAIAClient:
     def chat(self) -> ChatService:
         """Chat completions service."""
         if self._chat is None:
-            self._chat = ChatService(self._session, self._base_url)
+            self._chat = ChatService(self._session, self._base_url, retry=self._retry)
         return self._chat
 
     @property
     def voice(self) -> VoiceService:
         """Voice AI (transcription/translation) service."""
         if self._voice is None:
-            self._voice = VoiceService(self._session, self._base_url)
+            self._voice = VoiceService(self._session, self._base_url, retry=self._retry)
         return self._voice
 
     @property
@@ -108,6 +115,7 @@ class SAIAClient:
                 self._base_url,
                 self._api_key,
                 timeout=self._timeout,
+                retry=self._retry,
             )
         return self._arcana
 
@@ -115,7 +123,9 @@ class SAIAClient:
     def documents(self) -> DocumentService:
         """Document conversion (Docling) service."""
         if self._documents is None:
-            self._documents = DocumentService(self._session, self._base_url)
+            self._documents = DocumentService(
+                self._session, self._base_url, retry=self._retry
+            )
         return self._documents
 
     @property

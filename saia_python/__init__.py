@@ -17,6 +17,7 @@ from __future__ import annotations
 import concurrent.futures
 from importlib.metadata import PackageNotFoundError, version
 
+from ._http import RetryPolicy
 from ._streaming import SSEStream
 from .arcana_references import (
     ArcanaReference,
@@ -55,6 +56,7 @@ __all__ = [
     "resolve_base_url",
     "DEFAULT_BASE_URL",
     "create_openai_client",
+    "RetryPolicy",
     # Auth
     "load_api_key",
     "load_arcana_ids",

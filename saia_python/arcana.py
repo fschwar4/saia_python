@@ -11,7 +11,13 @@ from urllib.parse import quote
 
 import requests
 
-from ._http import DEFAULT_TIMEOUT, new_session_like, post_chat_completion
+from ._http import (
+    DEFAULT_TIMEOUT,
+    RetryPolicy,
+    coerce_retry,
+    new_session_like,
+    post_chat_completion,
+)
 from ._streaming import SSEStream
 from ._util import progress_iter
 from .exceptions import APIError, raise_for_status
@@ -77,12 +83,14 @@ class ArcanaService:
         api_key: str,
         *,
         timeout: float | tuple[float, float] | None = DEFAULT_TIMEOUT,
+        retry: RetryPolicy | bool | None = None,
     ):
         self._session = session
         self._base_url = base_url
         self._arcana_base = f"{self._base_url}{_ARCANA_PATH}"
         self._api_key = api_key
         self._timeout = timeout
+        self._retry = coerce_retry(retry)
 
     def _headers(self, **extra) -> dict:
         return {"Authorization": self._api_key, "Accept": "application/json", **extra}
@@ -1211,6 +1219,7 @@ class ArcanaService:
             body,
             headers=headers,
             stream=stream,
+            policy=self._retry,
         )
 
     def __repr__(self):

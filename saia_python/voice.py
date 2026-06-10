@@ -7,7 +7,7 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ._http import new_session_like
+from ._http import RetryPolicy, coerce_retry, execute, new_session_like
 from .exceptions import raise_for_status
 
 if TYPE_CHECKING:
@@ -22,9 +22,16 @@ class VoiceService:
         base_url: The SAIA API base URL.
     """
 
-    def __init__(self, session: requests.Session, base_url: str):
+    def __init__(
+        self,
+        session: requests.Session,
+        base_url: str,
+        *,
+        retry: RetryPolicy | bool | None = None,
+    ):
         self._session = session
         self._base_url = base_url
+        self._retry = coerce_retry(retry)
 
     def transcribe(
         self,
@@ -132,12 +139,18 @@ class VoiceService:
             if language:
                 data["language"] = language
 
-            with open(file_path, "rb") as f:
-                resp = session.post(
-                    f"{self._base_url}{endpoint}",
-                    data=data,
-                    files={"file": (file_path.name, f)},
-                )
+            # Read the file once into bytes so a 429 retry can re-send it — a
+            # one-shot file handle would be exhausted after the first attempt.
+            file_field = (file_path.name, file_path.read_bytes())
+            resp = execute(
+                session,
+                "post",
+                f"{self._base_url}{endpoint}",
+                policy=self._retry,
+                idempotent=True,
+                data=data,
+                files={"file": file_field},
+            )
             raise_for_status(resp)
 
             content_type = resp.headers.get("content-type", "")

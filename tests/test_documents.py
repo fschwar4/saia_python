@@ -8,6 +8,7 @@ objects with decoded ``bytes``, and that the save helpers write them correctly.
 import base64
 from unittest.mock import MagicMock
 
+from saia_python._http import RetryPolicy
 from saia_python.documents import ConversionImage, ConversionResult, DocumentService
 
 # A tiny byte blob; we only care about base64 round-tripping, not real PNG-ness.
@@ -20,6 +21,7 @@ def _make_service() -> DocumentService:
     svc = DocumentService.__new__(DocumentService)
     svc._session = MagicMock()
     svc._base_url = "https://example.com/v1"
+    svc._retry = RetryPolicy()
     return svc
 
 

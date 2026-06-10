@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from saia_python._http import RetryPolicy
 from saia_python.voice import VoiceService
 
 
@@ -13,6 +14,7 @@ def _make_service() -> VoiceService:
     svc = VoiceService.__new__(VoiceService)
     svc._session = MagicMock()
     svc._base_url = "https://example.com/v1"
+    svc._retry = RetryPolicy()
     return svc
 
 

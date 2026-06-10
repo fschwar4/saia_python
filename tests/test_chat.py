@@ -8,6 +8,7 @@ exposing the same headers via ``.rate_limits``.
 import json
 from unittest.mock import MagicMock
 
+from saia_python._http import RetryPolicy
 from saia_python._streaming import SSEStream
 from saia_python.chat import ChatService
 
@@ -21,6 +22,7 @@ def _make_service() -> ChatService:
     svc = ChatService.__new__(ChatService)
     svc._session = MagicMock()
     svc._base_url = "https://example.com/v1"
+    svc._retry = RetryPolicy()
     return svc
 
 

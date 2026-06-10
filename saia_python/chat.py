@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._http import post_chat_completion
+from ._http import RetryPolicy, coerce_retry, post_chat_completion
 from ._streaming import SSEStream
 
 if TYPE_CHECKING:
@@ -19,9 +19,16 @@ class ChatService:
         base_url: The SAIA API base URL.
     """
 
-    def __init__(self, session: requests.Session, base_url: str):
+    def __init__(
+        self,
+        session: requests.Session,
+        base_url: str,
+        *,
+        retry: RetryPolicy | bool | None = None,
+    ):
         self._session = session
         self._base_url = base_url
+        self._retry = coerce_retry(retry)
 
     def completions(
         self,
@@ -66,6 +73,7 @@ class ChatService:
             f"{self._base_url}/chat/completions",
             body,
             stream=stream,
+            policy=self._retry,
         )
 
     def __repr__(self):
