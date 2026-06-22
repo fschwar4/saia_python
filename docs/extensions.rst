@@ -8,5 +8,5 @@ documenting a single endpoint.
 .. toctree::
    :maxdepth: 2
 
-   tokenizers
    arcana_incremental_sync
+   tokenizers
