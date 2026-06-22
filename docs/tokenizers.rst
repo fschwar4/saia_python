@@ -1,7 +1,7 @@
 Tokenizers
 ==========
 
-Download the open-weight models' tokenizers and measure prompts **offline** —
+Download the open-weight models' tokenizers and measure prompts **offline**:
 token counts, the special/structural-token overhead a chat template adds, the
 subword fertility of your text, and the token distribution across a whole RAG
 corpus. This is a local capability built on Hugging Face ``transformers``; it
@@ -25,13 +25,13 @@ Why a built-in catalogue is needed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The SAIA ``GET /models`` listing says *which* models exist but **not where each
-tokenizer lives** — its per-model payload is ``id`` / ``name`` / ``input`` /
+tokenizer lives**. Its per-model payload is ``id`` / ``name`` / ``input`` /
 ``output`` / ``status`` / ``demand``, with no repository link. The GWDG model
 catalogue publishes the Hugging Face repositories only in human-readable form.
 :data:`~saia_python.tokenizer.GWDG_MODEL_REPOS` captures that mapping, and
 :meth:`TokenizerService.available_repos
 <saia_python.tokenizer.TokenizerService.available_repos>` annotates the *live*
-model list with it (proprietary external models — GPT-5.x, o3, … — map to
+model list with it (proprietary external models, e.g. GPT-5.x, o3, … map to
 ``None``; for those, use ``tiktoken`` instead).
 
 Tokenizer files are cached under ``~/saia_python/tokenizers/`` by default,
@@ -46,7 +46,7 @@ Set an ``HF_TOKEN`` (in the environment or a ``.env`` / ``.saia_env`` file besid
 your SAIA key) for higher Hub rate limits;
 :func:`~saia_python.tokenizer.load_hf_token` resolves it automatically. A few
 catalogue repos are **gated** (e.g. ``google/medgemma-27b-it``, under Google's
-Health AI terms): a token alone is not enough — you must also accept the licence
+Health AI terms): a token alone is not enough, but one must also accept the licence
 once on the model's Hugging Face page, signed in as the token account. Otherwise
 the download raises an expressive
 :class:`~saia_python.tokenizer.GatedRepoAccessError` carrying the licence URL and
@@ -120,7 +120,7 @@ Sizing a RAG corpus
 tokenizes every text file (and estimates a token cost for each image), and
 returns a :class:`~saia_python.tokenizer.TokenDistribution`: per-file counts plus
 aggregate statistics (total, mean, median, percentiles, and a breakdown
-``by_kind()``). Useful for sizing a knowledge base against a model's tokenizer —
+``by_kind()``). Useful for sizing a knowledge base against a model's tokenizer;
 for example the embedding model ``qwen3-embedding-4b``, which ARCANA's RAG
 pipeline uses internally.
 
@@ -153,6 +153,6 @@ mapping.
 See also
 --------
 
-- :doc:`api/tokenizer` — the complete API reference for every function and class.
-- ``examples/tokenizer_features.ipynb`` — a runnable notebook exercising every
+- :doc:`api/tokenizer`: the complete API reference for every function and class.
+- ``examples/tokenizer_features.ipynb``: a runnable notebook exercising every
   entry point end to end.
