@@ -62,6 +62,16 @@ saia_python = ["py.typed"]
 openai = [
     "openai>=1.0",
 ]
+tokenizer = [
+    # AutoTokenizer + chat-template (apply_chat_template) engine
+    "transformers>=4.40",
+    # downloads tokenizer files (snapshot_download) to the local cache
+    "huggingface-hub>=0.20",
+    # byte-pair encodings for the externally hosted OpenAI models
+    "tiktoken>=0.5",
+    # slow-tokenizer / SentencePiece backing for several of the models
+    "sentencepiece>=0.1.99",
+]
 test = [
     "pytest>=7.0",
     "pytest-cov>=4.0",

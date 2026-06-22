@@ -21,6 +21,7 @@ Services
    arcana_references
    documents
    models
+   tokenizer
    rate_limits
    responses
 

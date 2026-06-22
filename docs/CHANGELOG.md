@@ -9,6 +9,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Tokenizer support for the GWDG open-weight models, behind a new optional
+  `[tokenizer]` extra (`pip install saia-python[tokenizer]`:
+  `transformers` + `huggingface-hub` + `tiktoken` + `sentencepiece`). New
+  `saia_python.tokenizer` module and `client.tokenizers` service:
+  - `GWDG_MODEL_REPOS` / `resolve_repo()` / `repo_url()` map a GWDG model id (or
+    display name, or a full `org/name` repo) to its Hugging Face tokenizer
+    repository. The catalogue is required because `GET /models` does **not**
+    expose a repository link — its per-model payload is
+    `id`/`name`/`input`/`output`/`status`/`demand` only — so
+    `client.tokenizers.available_repos()` annotates the live model list from the
+    catalogue (proprietary external models map to `None`).
+    The registry includes the embedding model `qwen3-embedding-4b` (the model
+    ARCANA's RAG pipeline uses internally).
+  - `download_tokenizer()` / `download_all_tokenizers()` fetch only the
+    tokenizer files (never the weights) into `~/saia_python/tokenizers/` by
+    default — overridable per call or via the `SAIA_TOKENIZER_DIR` env var —
+    and tolerate per-model failures. `load_tokenizer()` loads via
+    `transformers.AutoTokenizer` (process-cached). `load_hf_token()` resolves a
+    Hugging Face token from `HF_TOKEN` (and aliases) or a `.env` / `.saia_env`
+    file, applied automatically to downloads for higher rate limits and gated
+    repos. A gated repo (e.g. `google/medgemma-27b-it`) raises an expressive
+    `GatedRepoAccessError` from `download_tokenizer()` / `load_tokenizer()` —
+    carrying the licence URL and setup steps — and is recorded as `None` (with a
+    `verbose=True` hint) in a `download_all_tokenizers()` batch.
+  - `chat_template_tokens()` applies a model's chat template to a
+    `role`/`content` conversation (the system prompt, and optionally the user
+    turn, may be read from a `.txt`/`.md` file) and returns a `ChatTokenCount`
+    with the templated length, the raw-text length, the special/structural-token
+    **overhead** (absolute, plus relative to the text and as a share of the full
+    prompt), and the **subword fertility**. It is tolerant: a missing user turn
+    (or any shape a strict template rejects) degrades to a best-effort count with
+    a recorded warning rather than raising. `chat_template_length()`,
+    `special_token_overhead()` and `subword_fertility(include_special=…)` are
+    thin wrappers; the flag selects whether fertility counts the template's
+    special/structural tokens.
+  - `token_distribution()` walks a directory recursively, tokenizes every text
+    file as raw content and estimates a token cost for each image, and returns a
+    `TokenDistribution` (per-file `FileTokenCount` rows plus aggregate stats /
+    histogram) — for sizing a RAG corpus against a model's tokenizer.
+  - `count_tiktoken_tokens()` covers the externally hosted OpenAI models
+    (GPT-5.x, o3, …), which have no downloadable tokenizer, via `tiktoken`.
+  - The heavy libraries are imported lazily, so importing `saia_python` never
+    requires the extra; the offline test suite exercises the counting logic
+    against an injected fake tokenizer.
+  - Worked example: `examples/tokenizer_features.ipynb` — a notebook that
+    exercises every public entry point of the feature, with an idempotent
+    install cell for the `[tokenizer]` extra.
 - `examples/arcana_frontmatter_repro.py` — self-contained, library-independent
   reproduction (for the GWDG ARCANA team) showing that the YAML front matter of
   an uploaded markdown file does not survive retrieval: the `References:` block

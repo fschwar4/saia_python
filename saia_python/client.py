@@ -12,6 +12,7 @@ from .documents import DocumentService
 from .exceptions import raise_for_status
 from .models import ModelsService
 from .rate_limits import RateLimitInfo, parse_rate_limits
+from .tokenizer import TokenizerService
 from .voice import VoiceService
 
 
@@ -80,6 +81,7 @@ class SAIAClient:
         self._models: ModelsService | None = None
         self._arcana: ArcanaService | None = None
         self._documents: DocumentService | None = None
+        self._tokenizers: TokenizerService | None = None
         self._openai = None
         self._openai_async = None
 
@@ -105,6 +107,19 @@ class SAIAClient:
                 self._session, self._base_url, timeout=self._timeout
             )
         return self._models
+
+    @property
+    def tokenizers(self) -> TokenizerService:
+        """Tokenizer service for the open-weight models.
+
+        Loads model tokenizers, counts chat-template tokens, and annotates the
+        live model list with Hugging Face repositories. Requires the optional
+        ``[tokenizer]`` extra (``pip install saia-python[tokenizer]``) for the
+        download/load operations; the repository annotations work without it.
+        """
+        if self._tokenizers is None:
+            self._tokenizers = TokenizerService(self.models)
+        return self._tokenizers
 
     @property
     def arcana(self) -> ArcanaService:

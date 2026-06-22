@@ -42,6 +42,29 @@ from .exceptions import APIError, AuthenticationError, RateLimitError, SAIAError
 from .openai_compat import create_openai_client
 from .rate_limits import RateLimitInfo, parse_rate_limits
 from .responses import text_of
+from .tokenizer import (
+    DEFAULT_TOKENIZER_DIR,
+    GWDG_MODEL_REPOS,
+    OPENAI_TIKTOKEN_ENCODINGS,
+    ChatTokenCount,
+    FileTokenCount,
+    GatedRepoAccessError,
+    TokenDistribution,
+    TokenizerService,
+    available_open_models,
+    chat_template_length,
+    chat_template_tokens,
+    count_tiktoken_tokens,
+    download_all_tokenizers,
+    download_tokenizer,
+    load_hf_token,
+    load_tokenizer,
+    repo_url,
+    resolve_repo,
+    special_token_overhead,
+    subword_fertility,
+    token_distribution,
+)
 
 try:
     __version__ = version("saia-python")
@@ -81,6 +104,28 @@ __all__ = [
     "parse_arcana_references",
     "parse_reference_entries",
     "is_arcana_event",
+    # Tokenizers ([tokenizer] extra)
+    "GWDG_MODEL_REPOS",
+    "OPENAI_TIKTOKEN_ENCODINGS",
+    "DEFAULT_TOKENIZER_DIR",
+    "ChatTokenCount",
+    "FileTokenCount",
+    "TokenDistribution",
+    "TokenizerService",
+    "GatedRepoAccessError",
+    "available_open_models",
+    "resolve_repo",
+    "repo_url",
+    "load_hf_token",
+    "download_tokenizer",
+    "download_all_tokenizers",
+    "load_tokenizer",
+    "chat_template_tokens",
+    "chat_template_length",
+    "special_token_overhead",
+    "subword_fertility",
+    "count_tiktoken_tokens",
+    "token_distribution",
     # Functional API
     "list_models",
     "list_model_ids",
