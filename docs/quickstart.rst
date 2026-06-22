@@ -271,6 +271,39 @@ Integration with ecosystem tools:
    )
 
 
+Tokenizers
+----------
+
+Download the open-weight models' tokenizers and measure prompts offline — token
+counts, the special/structural-token overhead a chat template adds, and subword
+fertility. Requires ``pip install saia-python[tokenizer]``. Tokenizer files
+(never the weights) are cached under ``~/saia_python/tokenizers/``.
+
+.. code-block:: python
+
+   from saia_python import chat_template_tokens, token_distribution
+
+   # How many tokens does a system prompt cost on gpt-oss-120b?
+   r = chat_template_tokens(
+       "openai-gpt-oss-120b",
+       system="You are a careful assistant.",
+       user="Summarise the attached report.",
+   )
+   print(r.num_tokens, "tokens;", r.overhead_tokens, "from special tokens")
+   print(f"overhead is {r.overhead_ratio_total:.0%} of the templated total")
+   print("subword fertility:", round(r.fertility, 3))
+
+   # The system prompt may also be read from a .txt / .md file:
+   r = chat_template_tokens("openai-gpt-oss-120b", system_file="system_prompt.md")
+
+   # Size a RAG corpus against the embedding model ARCANA uses internally:
+   dist = token_distribution("path/to/markdown", "qwen3-embedding-4b")
+   print(dist.summary())
+
+See :doc:`api/tokenizer` for the full surface (downloading, loading,
+``client.tokenizers``, and the ``tiktoken`` path for the external OpenAI models).
+
+
 Functional Interface
 --------------------
 

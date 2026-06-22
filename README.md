@@ -65,6 +65,7 @@ chat_completion(model="meta-llama-3.1-8b-instruct", messages=[...])
 | **ARCANA** | RAG — knowledge base management and retrieval-augmented chat | [ARCANA](https://docs.hpc.gwdg.de/services/ai-services/arcana/index.html) |
 | **Documents** | PDF/document conversion via Docling | [SAIA API](https://docs.hpc.gwdg.de/services/ai-services/saia/index.html) |
 | **Models** | List available models, probe tool-calling support | [SAIA API](https://docs.hpc.gwdg.de/services/ai-services/saia/index.html) |
+| **Tokenizers** | Download model tokenizers; count chat-template tokens, special-token overhead, and subword fertility (opt-in `[tokenizer]` extra) | [Chat AI Models](https://docs.hpc.gwdg.de/services/ai-services/chat-ai/models/index.html) |
 | **Rate Limits** | Inspect current quota and usage | [SAIA API](https://docs.hpc.gwdg.de/services/ai-services/saia/index.html) |
 
 ## Repository Structure
@@ -78,6 +79,7 @@ saia-python/
 │   ├── voice.py                  # VoiceService — transcribe + translate
 │   ├── arcana.py                 # ArcanaService — RAG / knowledge bases
 │   ├── models.py                 # ModelsService — list available models
+│   ├── tokenizer.py              # Tokenizers — download, chat-template token counting
 │   ├── documents.py              # DocumentService — Docling conversion
 │   ├── openai_compat.py          # OpenAI SDK compatibility layer
 │   ├── auth.py                   # Credential and config discovery

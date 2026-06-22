@@ -30,7 +30,8 @@ ARCANA (RAG), and document conversion services.
       :link: extensions
       :link-type: doc
 
-      Higher-level recipes built on the wrapper — e.g. ARCANA incremental sync.
+      Higher-level recipes built on the wrapper — e.g. tokenizers and ARCANA
+      incremental sync.
 
    .. grid-item-card:: Development
       :link: development
