@@ -513,3 +513,90 @@ class TestOnResultHook:
             on_result=lambda p, e: seen.__setitem__(p.name, e["status"]),
         )
         assert seen == {"new.txt": "uploaded", "keep.txt": "skipped"}
+
+
+class TestDeleteFiles:
+    """ArcanaService.delete_files — batch delete by an explicit name list."""
+
+    def test_deletes_each_name_and_returns_entries(self):
+        svc = _make_service()
+        svc.delete_file = MagicMock(return_value=None)
+        results = svc.delete_files("my-arcana", ["a.md", "b.md", "c.md"])
+        assert [r["file"] for r in results] == ["a.md", "b.md", "c.md"]
+        assert {r["status"] for r in results} == {"deleted"}
+        assert [c.args for c in svc.delete_file.call_args_list] == [
+            ("my-arcana", "a.md"),
+            ("my-arcana", "b.md"),
+            ("my-arcana", "c.md"),
+        ]
+
+    def test_failure_recorded_per_file_and_continues(self):
+        """A read-timeout on one name must not abort the rest — the whole
+        reason this is a batch op and not a bare loop that raises."""
+        svc = _make_service()
+
+        def fake_delete(arcana, fn):
+            if fn == "b.md":
+                raise requests.exceptions.ReadTimeout("read timed out")
+            return None
+
+        svc.delete_file = MagicMock(side_effect=fake_delete)
+        results = svc.delete_files("my-arcana", ["a.md", "b.md", "c.md"])
+        by = {r["file"]: r for r in results}
+        assert by["a.md"]["status"] == "deleted"
+        assert by["b.md"]["status"] == "failed" and "error" in by["b.md"]
+        assert by["c.md"]["status"] == "deleted"  # continued past the failure
+
+    def test_on_result_called_with_name_and_entry(self):
+        svc = _make_service()
+        svc.delete_file = MagicMock(return_value=None)
+        seen = []
+        svc.delete_files(
+            "my-arcana",
+            ["a.md", "b.md"],
+            on_result=lambda n, e: seen.append((n, e["status"])),
+        )
+        assert seen == [("a.md", "deleted"), ("b.md", "deleted")]
+
+    def test_empty_list_makes_no_calls(self):
+        svc = _make_service()
+        svc.delete_file = MagicMock()
+        assert svc.delete_files("my-arcana", []) == []
+        svc.delete_file.assert_not_called()
+
+    def test_name_with_path_separator_rejected_atomically(self):
+        """A '/' would make the Path-based executor delete only the basename
+        — refuse the whole batch up front, deleting nothing."""
+        svc = _make_service()
+        svc.delete_file = MagicMock()
+        with pytest.raises(ValueError, match="flat"):
+            svc.delete_files("my-arcana", ["ok.md", "sub/dir/bad.md"])
+        svc.delete_file.assert_not_called()  # atomic — nothing deleted
+
+
+class TestRecreate:
+    """ArcanaService.recreate — delete + recreate-empty-with-the-same-ID."""
+
+    def test_deletes_then_creates_same_name_without_uuid(self):
+        svc = _make_service()
+        svc.delete = MagicMock(return_value=None)
+        svc.create = MagicMock(
+            return_value={"name": "kb-uuid", "id": "owner/kb-uuid"}
+        )
+        out = svc.recreate("owner/kb-uuid")
+        svc.delete.assert_called_once_with("owner/kb-uuid")
+        # name stripped of owner, UUID preserved, append_uuid OFF → same ID
+        svc.create.assert_called_once_with(
+            "kb-uuid", append_uuid=False, update_toml=False
+        )
+        assert out["id"] == "owner/kb-uuid"
+
+    def test_create_failure_after_delete_raises_loud_apierror(self):
+        """If create dies after delete already landed, the arcana is gone —
+        that must surface as a loud, unambiguous error, not the raw 500."""
+        svc = _make_service()
+        svc.delete = MagicMock(return_value=None)
+        svc.create = MagicMock(side_effect=RuntimeError("gateway down"))
+        with pytest.raises(APIError, match="was DELETED but could not be recreated"):
+            svc.recreate("owner/kb-uuid")
+        svc.delete.assert_called_once()  # the dangerous half already happened

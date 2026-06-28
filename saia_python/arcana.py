@@ -415,6 +415,49 @@ class ArcanaService:
 
         return _json_or_none(resp)
 
+    def recreate(self, name: str, *, update_toml: bool = False) -> dict:
+        """Delete an arcana and recreate it **empty with the same ID**.
+
+        The minimal-call way to wipe an entire arcana: two requests
+        (:meth:`delete` + :meth:`create`) regardless of how many files it
+        holds, versus one :meth:`delete_file` per file (thousands of calls,
+        each its own read-timeout risk while the arcana is busy). The name —
+        including any UUID suffix — is preserved verbatim via
+        ``create(..., append_uuid=False)``, so a downstream pin on the full
+        ``owner/name-uuid`` ID stays valid.
+
+        Trade-offs versus emptying file-by-file (:meth:`delete_file` in a
+        loop, which keeps the container): there is a brief window between the
+        two calls where the arcana does **not exist**, and the recreated
+        arcana is brand-new — ``created_at``, sharing/permissions and any
+        other container settings reset to defaults. Only the name/ID carries
+        across.
+
+        Args:
+            name: The arcana name or full ``owner/name`` ID to recreate.
+            update_toml: Forwarded to :meth:`create`.
+
+        Returns:
+            The :meth:`create` result (``{"name", "id", "message"}``).
+
+        Raises:
+            APIError: If recreation fails *after* the delete already
+                succeeded — the arcana is then gone. The message says so
+                explicitly so the operator recreates it before any consumer
+                (adapter / manifest pin) points at the ID.
+        """
+        short = extract_arcana_name(name)
+        self.delete(name)
+        try:
+            return self.create(short, append_uuid=False, update_toml=update_toml)
+        except Exception as e:  # noqa: BLE001 — re-raise with a louder message
+            raise APIError(
+                f"arcana {short!r} was DELETED but could not be recreated: {e}. "
+                f"The arcana no longer exists — recreate it (e.g. "
+                f"create({short!r}, append_uuid=False)) before any consumer "
+                f"(adapter / manifest pin) points at its ID."
+            ) from e
+
     def list(self) -> list[dict]:
         """List all available arcanas.
 
@@ -741,6 +784,70 @@ class ArcanaService:
         )
         raise_for_status(resp)
         return _json_or_none(resp)
+
+    def delete_files(
+        self,
+        name: str,
+        file_names: Iterable[str],
+        *,
+        verbose: bool = False,
+        on_result: Callable[[str, dict], None] | None = None,
+    ) -> list[dict]:
+        """Delete an explicit list of files from an arcana, by name.
+
+        The batch counterpart to :meth:`delete_file`: hand it the file names
+        (as returned by :meth:`list_files`) and it deletes each one,
+        capturing a per-file outcome instead of aborting on the first
+        failure. Unlike :meth:`delete_directory` no local directory is
+        consulted — the names come straight from the caller — so it can
+        target files that no longer exist on disk (e.g. a name list from a
+        CSV). Pairs with a thin CLI front-end that resolves *which* names to
+        delete; this method only does the deleting.
+
+        Args:
+            name: The arcana name or full ``owner/name`` ID.
+            file_names: The file names to delete (flat names, as listed by
+                :meth:`list_files`). Order is preserved; a repeated name is
+                attempted each time (a second delete just reports the
+                server's response / 404).
+            verbose: If ``True``, print per-file deletion status.
+            on_result: Optional callback invoked as ``on_result(file_name,
+                entry)`` after each file (``entry`` is that file's
+                ``{"file", "status", ["error"]}`` dict), for inline
+                per-file logging.
+
+        Returns:
+            A list of dicts with keys ``"file"`` (the name), ``"status"``
+            (``"deleted"`` or ``"failed"``), and ``"error"`` (only on
+            failure) — the same shape every batch op returns.
+        """
+        names = [str(n) for n in file_names]
+        # Arcana file names are flat (as listed by :meth:`list_files`). The
+        # batch executor below is Path-centric and targets ``Path(n).name``;
+        # a name containing ``/`` would silently collapse to its basename and
+        # delete the WRONG file. Refuse the whole batch up front — atomic, so
+        # nothing is deleted if any name is malformed (e.g. from a bad CSV).
+        bad = [n for n in names if "/" in n]
+        if bad:
+            raise ValueError(
+                f"ARCANA file names are flat (no '/'); refusing to delete "
+                f"{len(bad)} name(s) containing a path separator: {bad}"
+            )
+        # Reuse the shared batch executor (iteration, per-file error capture,
+        # progress bar, on_result, tally). With flat names ``Path(n).name ==
+        # n``, so the label/delete-target round-trips exactly.
+        return self._run_file_batch(
+            [Path(n) for n in names],
+            lambda fp: self.delete_file(name, fp.name),
+            default_status="deleted",
+            desc="Deleting",
+            verbose=verbose,
+            on_result=(
+                None
+                if on_result is None
+                else lambda fp, entry: on_result(fp.name, entry)
+            ),
+        )
 
     def download_file(self, name: str, file_name: str, output_path: str | Path) -> Path:
         """Download a file from an arcana to a local path.
