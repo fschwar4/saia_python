@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] — 2026-06-28
+
+### Added
+
+- `ArcanaService.delete_files(name, file_names, *, verbose=False, on_result=None)`
+  — batch-delete an explicit list of files from an arcana by name, the
+  counterpart to `delete_file`. Reuses the shared `_run_file_batch` executor
+  (per-file error capture, progress bar, `on_result`, uniform
+  `{"file", "status", ["error"]}` entries), so one failed/timed-out file no
+  longer aborts the rest. File names are validated as flat (no `/`) up front and
+  the whole batch is refused **atomically** if any contains a path separator —
+  guarding against a silent wrong-file delete through the `Path`-based executor.
+- `ArcanaService.recreate(name, *, update_toml=False)` — wipe an entire arcana
+  in two API calls (`delete` + `create(append_uuid=False)`), recreating it empty
+  with the **same `owner/name-uuid` ID** so a downstream pin (e.g. a manifest)
+  stays valid. Raises `APIError` if creation fails after the delete already
+  landed (the arcana is then gone — the message says so explicitly). The
+  minimal-call alternative to deleting thousands of files one `delete_file` at a
+  time.
+
 ## [0.7.0] — 2026-06-22
 
 ### Added
