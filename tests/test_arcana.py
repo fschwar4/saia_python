@@ -580,9 +580,7 @@ class TestRecreate:
     def test_deletes_then_creates_same_name_without_uuid(self):
         svc = _make_service()
         svc.delete = MagicMock(return_value=None)
-        svc.create = MagicMock(
-            return_value={"name": "kb-uuid", "id": "owner/kb-uuid"}
-        )
+        svc.create = MagicMock(return_value={"name": "kb-uuid", "id": "owner/kb-uuid"})
         out = svc.recreate("owner/kb-uuid")
         svc.delete.assert_called_once_with("owner/kb-uuid")
         # name stripped of owner, UUID preserved, append_uuid OFF → same ID
