@@ -56,6 +56,52 @@ list_model_ids()
 chat_completion(model="meta-llama-3.1-8b-instruct", messages=[...])
 ```
 
+### Async
+
+For concurrent workloads (e.g. an ASGI service), install the `[async]` extra and
+use `AsyncSAIAClient` — the `httpx.AsyncClient` twin of the data plane, carrying
+the **same** `RetryPolicy` and rate-limit handling as the sync client (not the
+`openai_async` shim, which bypasses them):
+
+```bash
+pip install saia-python[async]
+```
+
+```python
+import asyncio
+from saia_python.aio import AsyncSAIAClient
+
+
+async def main():
+    async with AsyncSAIAClient() as client:
+        # Non-streaming RAG chat
+        answer = await client.arcana.chat(
+            model="openai-gpt-oss-120b",
+            messages=[{"role": "user", "content": "Summarise the DLBCL first line."}],
+            arcana_id="owner/kb",
+        )
+        print(answer["choices"][0]["message"]["content"])
+
+        # Streaming plain chat — retry=False fails fast with an informative 429
+        stream = await client.chat.completions(
+            model="meta-llama-3.1-8b-instruct",
+            messages=[{"role": "user", "content": "Hello!"}],
+            stream=True,
+            retry=False,
+        )
+        async for chunk in stream:
+            ...
+
+
+asyncio.run(main())
+```
+
+Async covers the data plane (chat, ARCANA RAG chat, streaming) plus the
+read-only control-plane calls (`models`, arcana `version`/`heartbeat`/`list`/
+`get`, `health_check`). File upload/index/sync, voice, and document conversion
+remain synchronous on `SAIAClient` — see
+[ADR-0007](docs/adr/0007-native-async-transport.md).
+
 ## Supported Services
 
 | Service | Description | GWDG Docs |

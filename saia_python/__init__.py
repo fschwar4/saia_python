@@ -18,6 +18,12 @@ import concurrent.futures
 from importlib.metadata import PackageNotFoundError, version
 
 from ._http import RetryPolicy
+from ._payloads import (
+    INFERENCE_SERVICE,
+    apply_arcana_fields,
+    arcana_chat_headers,
+    build_chat_body,
+)
 from ._streaming import SSEStream
 from .arcana_references import (
     ArcanaReference,
@@ -40,7 +46,7 @@ from .client import SAIAClient
 from .documents import ConversionImage, ConversionResult
 from .exceptions import APIError, AuthenticationError, RateLimitError, SAIAError
 from .openai_compat import create_openai_client
-from .rate_limits import RateLimitInfo, parse_rate_limits
+from .rate_limits import RateLimitInfo, format_rate_limit_error, parse_rate_limits
 from .responses import text_of
 from .tokenizer import (
     DEFAULT_TOKENIZER_DIR,
@@ -95,6 +101,12 @@ __all__ = [
     # Rate limits
     "RateLimitInfo",
     "parse_rate_limits",
+    "format_rate_limit_error",
+    # Request builders (pure — shared by sync, async, and external gateways)
+    "build_chat_body",
+    "apply_arcana_fields",
+    "arcana_chat_headers",
+    "INFERENCE_SERVICE",
     # Response helpers
     "text_of",
     "SSEStream",
@@ -141,6 +153,23 @@ __all__ = [
     "ConversionResult",
     "ConversionImage",
 ]
+
+# Async API (the ``[async]`` extra: ``pip install saia-python[async]``). Exposed
+# lazily so importing ``saia_python`` never pulls ``httpx`` for sync-only users;
+# ``from saia_python import AsyncSAIAClient`` still works when httpx is present.
+# Kept OUT of ``__all__`` so ``from saia_python import *`` stays httpx-free.
+_ASYNC_EXPORTS = frozenset(
+    {"AsyncSAIAClient", "AsyncChatService", "AsyncArcanaService", "AsyncModelsService"}
+)
+
+
+def __getattr__(name: str):
+    """Lazily resolve the async client from :mod:`saia_python.aio` on access."""
+    if name in _ASYNC_EXPORTS:
+        from . import aio
+
+        return getattr(aio, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _make_client(api_key: str | None = None, base_url: str | None = None) -> SAIAClient:

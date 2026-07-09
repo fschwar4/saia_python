@@ -21,6 +21,7 @@ kept for history and marked as such). The [CHANGELOG](../CHANGELOG.md) records
 | [0004](0004-non-blocking-operations-via-futures.md) | Non-blocking operations via Futures and dedicated Sessions | Accepted |
 | [0005](0005-arcana-reference-parsing-in-the-core.md) | ARCANA reference parsing in the core (transport-agnostic) | Accepted |
 | [0006](0006-transport-policy-rate-limit-handling.md) | Transport-policy layer for rate-limit handling | Accepted |
+| [0007](0007-native-async-transport.md) | Native async transport (`saia_python.aio`) | Accepted |
 
 ```{toctree}
 :hidden:
@@ -33,4 +34,5 @@ kept for history and marked as such). The [CHANGELOG](../CHANGELOG.md) records
 0004-non-blocking-operations-via-futures
 0005-arcana-reference-parsing-in-the-core
 0006-transport-policy-rate-limit-handling
+0007-native-async-transport
 ```

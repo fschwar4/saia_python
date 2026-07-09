@@ -68,7 +68,8 @@ def parse_rate_limits(headers) -> RateLimitInfo:
     """Parse rate-limit info from HTTP response headers.
 
     Args:
-        headers: A dict-like object (e.g. ``requests.Response.headers``).
+        headers: A dict-like object (e.g. ``requests.Response.headers`` or
+            ``httpx.Response.headers``).
 
     Returns:
         RateLimitInfo with populated fields for each header found.
@@ -82,3 +83,37 @@ def parse_rate_limits(headers) -> RateLimitInfo:
             except (ValueError, TypeError):
                 pass
     return RateLimitInfo(**kwargs)
+
+
+def format_rate_limit_error(info: RateLimitInfo, detail: str | None = None) -> str:
+    """Build a human-readable message for a 429 (rate-limit) response.
+
+    Pure — parses nothing, does no I/O — so both the sync and async transports
+    raise the *same* informative :class:`~saia_python.RateLimitError` message
+    when retry is off or the budget is spent, instead of a bare server string.
+    Summarises the remaining per-window quota, the reset hint, and how to make
+    the call wait automatically.
+
+    Args:
+        info: The parsed rate-limit headers from the 429 response.
+        detail: The server's own error detail, appended when present.
+    """
+    parts = ["SAIA rate limit exceeded (HTTP 429)."]
+    windows = []
+    for window in ("minute", "hour", "day", "month"):
+        limit = getattr(info, f"limit_{window}")
+        remaining = getattr(info, f"remaining_{window}")
+        if limit is not None:
+            rem = remaining if remaining is not None else "?"
+            windows.append(f"{window} {rem}/{limit}")
+    if windows:
+        parts.append("Remaining — " + ", ".join(windows) + ".")
+    if info.reset_seconds is not None and info.reset_seconds > 0:
+        parts.append(f"The minute window resets in ~{info.reset_seconds}s.")
+    parts.append(
+        "Pass retry=True (or a RetryPolicy) to wait for the reset and retry "
+        "automatically; retry=False fails fast with this error."
+    )
+    if detail and detail.strip():
+        parts.append(f"Server detail: {detail.strip()}")
+    return " ".join(parts)
