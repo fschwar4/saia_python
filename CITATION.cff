@@ -43,6 +43,9 @@ identifiers:
   - type: doi
     value: "10.5281/zenodo.21004389"   # this specific release
     description: Zenodo Software Version DOI (v0.8.0)
+  - type: doi
+    value: "10.5281/zenodo.21278215"   # this specific release
+    description: Zenodo Software Version DOI (v0.9.0)
 keywords:
   - GWDG
   - SAIA
