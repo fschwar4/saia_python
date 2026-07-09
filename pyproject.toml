@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "saia-python"
-version = "0.8.0"
+version = "0.9.0"
 description = "Python wrapper for the GWDG SAIA platform REST API"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -37,6 +37,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Framework :: AsyncIO",
     "Typing :: Typed",
 ]
 dependencies = [
@@ -62,6 +63,11 @@ saia_python = ["py.typed"]
 openai = [
     "openai>=1.0",
 ]
+async = [
+    # httpx.AsyncClient backs the native async transport (saia_python.aio).
+    # requests stays the sync core; httpx is pulled only when you want async.
+    "httpx>=0.27",
+]
 tokenizer = [
     # AutoTokenizer + chat-template (apply_chat_template) engine
     "transformers>=4.40",
@@ -75,7 +81,7 @@ tokenizer = [
 test = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
-    "saia-python[openai]",
+    "saia-python[openai,async]",
 ]
 docs = [
     "sphinx>=7.0",
@@ -119,9 +125,10 @@ module = "saia_python.auth"
 disable_error_code = ["index", "operator", "union-attr", "call-arg"]
 
 [[tool.mypy.overrides]]
-# `ModelsService.list` / `ArcanaService.list` shadow the builtin `list`, so
-# `list[...]` annotations inside these classes resolve to the method rather than
-# the type. Renaming would break the public API; scoped out until the
-# annotations are qualified (e.g. `builtins.list`).
-module = ["saia_python.models", "saia_python.arcana"]
+# `ModelsService.list` / `ArcanaService.list` (and their async twins in
+# `saia_python.aio`) shadow the builtin `list`, so `list[...]` annotations inside
+# these classes resolve to the method rather than the type. Renaming would break
+# the public API; scoped out until the annotations are qualified (e.g.
+# `builtins.list`).
+module = ["saia_python.models", "saia_python.arcana", "saia_python.aio"]
 disable_error_code = ["valid-type"]

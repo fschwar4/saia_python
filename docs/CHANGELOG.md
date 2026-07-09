@@ -5,6 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] — 2026-07-09
+
+### Added
+
+- **Native async transport** behind a new `[async]` extra
+  (`pip install saia-python[async]`, pulls `httpx`). New `saia_python.aio`
+  module: `AsyncSAIAClient` + `AsyncChatService` / `AsyncArcanaService` /
+  `AsyncModelsService`, the `httpx.AsyncClient` twins of the sync data plane —
+  chat completions and ARCANA RAG `chat` (streaming + non-streaming),
+  `get_rate_limits`, and `health_check`. Use it as an async context manager;
+  `from saia_python import AsyncSAIAClient` resolves lazily so importing the
+  package never pulls `httpx` for sync-only users. See ADR-0007.
+  - **The retry brains are shared, not copied.** `aexecute` /
+    `apost_chat_completion` reuse `RetryPolicy` / `_plan` / `_jitter` /
+    `resolve_retry` / `parse_rate_limits` verbatim, so the async path honours the
+    same 429 policy (ADR-0006) as the sync path and the two cannot drift. The
+    `retry` keyword works identically (`retry=False` fails fast; a `RetryPolicy`
+    tunes it).
+  - **`AsyncSSEStream`** owns the `httpx` `client.stream(...)` context, retrying
+    an initial 429 *before* the body is exposed (never mid-stream). Two
+    consumption modes: `async for chunk in stream` (decoded dicts; raises on an
+    error status) or `async for line in stream.aiter_lines()` (raw lines, no
+    raise — lets a gateway frame upstream errors itself).
+- **Informative 429 errors** (`format_rate_limit_error`, exported). When retry is
+  off or the budget is spent, `RateLimitError` now carries a human-readable
+  message — which window was hit, when it resets, and how to auto-retry — instead
+  of only the bare server string. Shared by both transports (raised from
+  `raise_for_status`).
+- **Pure request builders** (`saia_python._payloads`, re-exported at top level):
+  `build_chat_body`, `apply_arcana_fields`, `arcana_chat_headers`, and the
+  `INFERENCE_SERVICE` constant. Transport-free, so the sync services, the async
+  services, and external gateways (the AVOR adapter) share **one** definition of
+  the three-part ARCANA injection invariant (`enable-tools` + `arcana.id` body
+  fields + the `inference-service` header) — defined and unit-tested once.
+
+### Changed
+
+- **Every `SAIAError` now carries `status_code` + `response_body`** (previously
+  only `APIError` did). Lets a caller reframe the exact upstream response.
+  `RateLimitError` keeps its `rate_limits` attribute (unchanged signature).
+- **`raise_for_status` is transport-agnostic** — it accepts a `requests.Response`
+  (honouring `.ok`) or an `httpx.Response` (deciding success from `status_code`),
+  so one implementation serves both paths. No behaviour change for sync callers.
+- The `test` extra now installs `[async]` too, so CI exercises the async suite.
+
+### Notes
+
+- Async covers the data plane + read-only control-plane calls. File
+  upload/index/sync, voice, and document conversion stay **sync-only** on
+  `SAIAClient` (batch/admin work, blocking file I/O, no concurrency benefit). See
+  ADR-0007 for the scope rationale.
+- Tests: +42 async tests (`test_async_transport` / `_streaming` / `_arcana` /
+  `_chat` / `_client`, `test_payloads`, `test_rate_limit_message`); the suite
+  grows 198 → 240 and stays `mypy`- and `ruff`-clean.
+
 ## [0.8.0] — 2026-06-28
 
 ### Added
