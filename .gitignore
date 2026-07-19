@@ -29,8 +29,12 @@ Thumbs.db
 # Jupyter
 .ipynb_checkpoints/
 
-# Claude Code
-.claude/
+# Claude Code — AGENTS.md + CLAUDE.md are committed & shared (public repo: no secrets).
+# Keep personal permissions/worktrees and per-machine residue out of git;
+# a shared .claude/settings.json (if added) is allowed.
+.claude/settings.local.json
+.claude/worktrees/
+CLAUDE.local.md
 
 # Sphinx
 docs/_build/
