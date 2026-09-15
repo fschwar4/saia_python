@@ -132,3 +132,8 @@ disable_error_code = ["index", "operator", "union-attr", "call-arg"]
 # `builtins.list`).
 module = ["saia_python.models", "saia_python.arcana", "saia_python.aio"]
 disable_error_code = ["valid-type"]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.3.0",
+]
