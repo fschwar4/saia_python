@@ -48,3 +48,6 @@ warnings_sphinx_build.txt
 .coverage.*
 htmlcov/
 coverage.xml
+
+# uv — lockfile stays local; pyproject.toml is the dependency source of truth (ADR-0003)
+uv.lock
