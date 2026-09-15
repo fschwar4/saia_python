@@ -60,6 +60,11 @@ create + publish the Release.
 ## Conventions
 
 - Conventional Commits; **no `Co-Authored-By` trailer**.
+- **Git commands start with `cd` to the repository root**, whether an agent
+  runs them or hands them to a person, e.g.
+  `cd /abs/path/to/saia_python && git status`. Use the absolute path of the
+  checkout (or worktree) the command acts on, and chain with `&&` so a failed
+  `cd` never runs git in the wrong directory.
 - Keep the pinned dependency of any downstream consumer explicit — never float a
   consumer to `@main`.
 - More: `README.md` (Quick Start, Supported Services, Repository Structure) and
