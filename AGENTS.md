@@ -28,6 +28,12 @@ in only via the optional `[async]` extra.
   `/v1/responses` is **unsupported but seems to work**: GWDG's docs say the
   Responses API is not provided, yet the route answers (verified 2026-10). To
   re-check: `SAIA_RESPONSES_LIVE=1 pytest tests/test_live_responses_route.py`.
+- **`structured.py`** — structured output: a Pydantic v2 model in, a validated
+  instance out (`chat.completions_structured`, built on `response_format_for` +
+  `parse_structured`). SAIA (vLLM) enforces the `json_schema` server-side, so
+  there is no retry loop; reasoning models need `max_tokens` headroom. Pydantic
+  is imported lazily, never at package import. To re-check:
+  `SAIA_STRUCTURED_LIVE=1 pytest tests/test_live_structured.py`.
 - **`arcana_references.py`** — the GWDG ARCANA reference-citation grammar;
   consumed by downstream RAG adapters. Treat its public shape as an API contract.
 - **`tokenizer.py`** — tiktoken-based token counting (`[test]`/`dev` pull tiktoken).

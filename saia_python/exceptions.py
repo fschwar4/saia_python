@@ -76,6 +76,32 @@ class APIError(SAIAError):
         super().__init__(message, status_code=status_code, response_body=response_body)
 
 
+class StructuredOutputError(SAIAError):
+    """Raised when a chat response holds no answer that validates against the
+    requested structured-output model.
+
+    The HTTP call itself succeeded, so ``status_code`` is ``None``; the message
+    says why the answer is unusable. The response stays attached, so a caller
+    can still read ``usage`` (the tokens were spent) or inspect the raw content.
+
+    Attributes:
+        response: The chat response dict the answer was read from.
+        finish_reason: The first choice's ``finish_reason`` — ``"length"`` means
+            the token budget ran out — or ``None`` when there was no choice.
+    """
+
+    def __init__(
+        self,
+        message: object,
+        *,
+        response: dict,
+        finish_reason: str | None = None,
+    ):
+        super().__init__(message)
+        self.response = response
+        self.finish_reason = finish_reason
+
+
 def _extract_detail(resp: Any) -> str:
     """Try to extract a human-readable message from a JSON error body.
 

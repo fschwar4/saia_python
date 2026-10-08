@@ -219,6 +219,74 @@ JSON schemas; the model decides when to invoke them:
        print(final["choices"][0]["message"]["content"])
 
 
+Structured Output
+-----------------
+
+Pass a Pydantic v2 model and get a validated instance back. SAIA enforces the
+model's JSON Schema on the server — the inference backend only lets the model
+write tokens that fit the schema — so the answer parses without a retry loop:
+
+.. code-block:: python
+
+   from typing import Literal
+
+   from pydantic import BaseModel
+
+   class Sentiment(BaseModel):
+       label: Literal["positive", "negative", "neutral"]
+       confidence: float
+
+   result = client.chat.completions_structured(
+       model="meta-llama-3.1-8b-instruct",
+       messages=[{"role": "user", "content": "Sentiment of: 'The update broke my build.'"}],
+       response_model=Sentiment,
+   )
+   print(result.label)  # negative
+
+The schema shapes the answer but is not added to the prompt, so still say in
+the messages what each field should hold.
+
+Reasoning models think before they answer, and the thinking counts against
+``max_tokens``. If the budget runs out first, the call raises
+:class:`~saia_python.StructuredOutputError` instead of returning half an
+object. Leave room, or turn thinking off where the chat template allows it:
+
+.. code-block:: python
+
+   from saia_python import StructuredOutputError
+
+   try:
+       result = client.chat.completions_structured(
+           model="qwen3.6-35b-a3b",
+           messages=[...],
+           response_model=Sentiment,
+           chat_template_kwargs={"enable_thinking": False},  # Qwen templates
+       )
+   except StructuredOutputError as err:
+       print(err)                     # why the answer is unusable
+       print(err.finish_reason)       # "length" when the budget ran out
+       print(err.response["usage"])   # the tokens were still spent
+
+``completions_structured`` returns only the instance. To keep the raw response
+too (e.g. its ``usage``), use the two helpers it is built from:
+
+.. code-block:: python
+
+   from saia_python import parse_structured, response_format_for
+
+   response = client.chat.completions(
+       model="meta-llama-3.1-8b-instruct",
+       messages=[...],
+       response_format=response_format_for(Sentiment),
+   )
+   result = parse_structured(response, Sentiment)
+   print(response["usage"]["total_tokens"])
+
+The async client has the same method (``await
+client.chat.completions_structured(...)``), and the OpenAI SDK route works too:
+``client.openai.chat.completions.parse(..., response_format=Sentiment)``.
+
+
 OpenAI SDK Integration
 ----------------------
 

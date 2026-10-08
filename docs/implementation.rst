@@ -164,6 +164,9 @@ Endpoint compatibility:
    * - ``chat.completions.create()``
      - Works
      - Streaming, tool calling
+   * - ``chat.completions.parse()``
+     - Works
+     - Structured output from a Pydantic model
    * - ``models.list()``
      - Works
      - Returns SAIA model IDs

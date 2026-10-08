@@ -81,6 +81,8 @@ tokenizer = [
 test = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
+    # the structured-output tests define Pydantic v2 models
+    "pydantic>=2",
     "saia-python[openai,async]",
 ]
 docs = [

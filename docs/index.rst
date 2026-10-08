@@ -49,7 +49,7 @@ ARCANA (RAG), and document conversion services.
 Wrapped Services
 ----------------
 
-- `Chat AI <https://docs.hpc.gwdg.de/services/ai-services/chat-ai/index.html>`_ — chat completions with streaming and tool calling
+- `Chat AI <https://docs.hpc.gwdg.de/services/ai-services/chat-ai/index.html>`_ — chat completions with streaming, tool calling, and structured output (Pydantic)
 - `Voice AI <https://docs.hpc.gwdg.de/services/ai-services/voice-ai/index.html>`_ — audio transcription and translation (Whisper)
 - `ARCANA <https://docs.hpc.gwdg.de/services/ai-services/arcana/index.html>`_ — RAG: knowledge base management and retrieval-augmented chat
 - `Documents (Docling) <https://docs.hpc.gwdg.de/services/ai-services/saia/index.html>`_ — PDF and document conversion to Markdown, HTML, JSON

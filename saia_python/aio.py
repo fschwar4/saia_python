@@ -41,7 +41,7 @@ the two transports cannot drift.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from ._async_http import aexecute, apost_chat_completion
 from ._async_streaming import AsyncSSEStream
@@ -54,6 +54,7 @@ from ._payloads import (
 from .auth import resolve_credentials
 from .exceptions import raise_for_status
 from .rate_limits import RateLimitInfo, parse_rate_limits
+from .structured import ModelT, parse_structured, response_format_for
 
 if TYPE_CHECKING:
     import httpx
@@ -139,6 +140,38 @@ class AsyncChatService:
             stream=stream,
             policy=resolve_retry(self._retry, retry),
         )
+
+    async def completions_structured(
+        self,
+        model: str,
+        messages: list[dict],
+        response_model: type[ModelT],
+        *,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        max_tokens: int | None = None,
+        retry: RetryPolicy | bool | None = None,
+        **kwargs: Any,
+    ) -> ModelT:
+        """Return the answer as a validated ``response_model`` instance.
+
+        See :meth:`ChatService.completions_structured
+        <saia_python.chat.ChatService.completions_structured>`; raises
+        :class:`~saia_python.StructuredOutputError` when there is no answer
+        that validates.
+        """
+        response = await self.completions(
+            model,
+            messages,
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_tokens,
+            stream=False,
+            retry=retry,
+            response_format=response_format_for(response_model),
+            **kwargs,
+        )
+        return parse_structured(cast(dict, response), response_model)
 
     def __repr__(self) -> str:
         return f"AsyncChatService(base_url={self._base_url!r})"

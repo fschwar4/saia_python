@@ -44,10 +44,17 @@ from .auth import (
 )
 from .client import SAIAClient
 from .documents import ConversionImage, ConversionResult
-from .exceptions import APIError, AuthenticationError, RateLimitError, SAIAError
+from .exceptions import (
+    APIError,
+    AuthenticationError,
+    RateLimitError,
+    SAIAError,
+    StructuredOutputError,
+)
 from .openai_compat import create_openai_client
 from .rate_limits import RateLimitInfo, format_rate_limit_error, parse_rate_limits
 from .responses import text_of
+from .structured import parse_structured, response_format_for
 from .tokenizer import (
     DEFAULT_TOKENIZER_DIR,
     GWDG_MODEL_REPOS,
@@ -98,6 +105,7 @@ __all__ = [
     "AuthenticationError",
     "RateLimitError",
     "APIError",
+    "StructuredOutputError",
     # Rate limits
     "RateLimitInfo",
     "parse_rate_limits",
@@ -110,6 +118,9 @@ __all__ = [
     # Response helpers
     "text_of",
     "SSEStream",
+    # Structured output (Pydantic v2 models)
+    "response_format_for",
+    "parse_structured",
     # ARCANA reference parsing
     "ArcanaReference",
     "ParsedReferences",

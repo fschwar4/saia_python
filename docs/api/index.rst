@@ -24,6 +24,7 @@ Services
    tokenizer
    rate_limits
    responses
+   structured
 
 Configuration & Auth
 --------------------

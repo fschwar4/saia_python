@@ -106,7 +106,7 @@ remain synchronous on `SAIAClient` — see
 
 | Service | Description | GWDG Docs |
 |---------|-------------|-----------|
-| **Chat AI** | Chat completions with streaming and tool calling | [Chat AI](https://docs.hpc.gwdg.de/services/ai-services/chat-ai/index.html) |
+| **Chat AI** | Chat completions with streaming, tool calling, and structured output (Pydantic) | [Chat AI](https://docs.hpc.gwdg.de/services/ai-services/chat-ai/index.html) |
 | **Voice AI** | Audio transcription and translation (Whisper) | [Voice AI](https://docs.hpc.gwdg.de/services/ai-services/voice-ai/index.html) |
 | **ARCANA** | RAG — knowledge base management and retrieval-augmented chat | [ARCANA](https://docs.hpc.gwdg.de/services/ai-services/arcana/index.html) |
 | **Documents** | PDF/document conversion via Docling | [SAIA API](https://docs.hpc.gwdg.de/services/ai-services/saia/index.html) |

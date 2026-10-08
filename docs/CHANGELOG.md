@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Structured output** — `client.chat.completions_structured(model, messages,
+  response_model)` (sync and async) sends a Pydantic v2 model's JSON Schema as a
+  `json_schema` `response_format` and returns a validated instance. SAIA
+  enforces the schema on the server, so there is no retry loop; this replaces
+  the roadmap's planned `instructor` integration. An unusable answer raises the
+  new `StructuredOutputError`, which keeps the response and its `usage` — most
+  often a reasoning model that spent its `max_tokens` thinking (`content: None`,
+  `finish_reason: "length"`). The building blocks `response_format_for()` and
+  `parse_structured()` are exported for callers who also need the raw response.
+  Pydantic stays optional: the package imports it only when
+  `parse_structured()` runs, and the `[test]` extra now lists `pydantic>=2`. Opt-in live check:
+  `SAIA_STRUCTURED_LIVE=1 pytest tests/test_live_structured.py`.
 - **`AGENTS.md`** — a tool-neutral contributor/agent guide (package layout, CI
   gates, release process). Read natively by agent tools that support `AGENTS.md`,
   and by Claude Code via a thin **`CLAUDE.md`** that imports it (`@AGENTS.md`).

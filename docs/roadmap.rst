@@ -53,11 +53,6 @@ Ecosystem Integration (v0.6)
   precursor to the native ``saia_python.langchain`` classes above, mirroring the
   example-only pattern of ``examples/openai_compatible_proxy.ipynb``.
 
-**Structured output**:
-  Integration with ``instructor`` for Pydantic-validated model responses.
-  Convenience method ``client.chat.completions_structured(model, messages, response_model=...)``
-  to eliminate patching boilerplate.
-
 **Native embeddings service** (``saia_python/embeddings.py``):
   Direct wrapper around ``POST /embeddings`` with typed return values,
   complementing the OpenAI-compatible access that already works via

@@ -7,3 +7,5 @@ Exceptions
    :members:
 .. autoclass:: saia_python.APIError
    :members:
+.. autoclass:: saia_python.StructuredOutputError
+   :members:
