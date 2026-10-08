@@ -63,6 +63,46 @@ Ecosystem Integration (v0.6)
   Currently undocumented in the library.
 
 
+instructor (to evaluate)
+------------------------
+
+`instructor <https://python.useinstructor.com/>`_ (MIT) wraps an OpenAI-style
+client: you pass ``response_model=SomeModel``, it checks the answer with
+Pydantic and, when the check fails, asks the model again with the error
+attached, up to ``max_retries``. The native
+:meth:`~saia_python.chat.ChatService.completions_structured` already covers the
+common case without it, because SAIA enforces the schema while generating. This
+item is about checking instructor out and deciding whether it earns a place —
+it is not a plan to build on it. Anything that comes of it would be an
+additional, opt-in option, just as structured output is: the plain
+``completions()`` workflow stays as it is, and instructor would sit next to
+``completions_structured()`` rather than replace it.
+
+**Status — to evaluate (no implementation planned)**:
+  Try it against SAIA through ``client.openai`` before deciding anything.
+
+**Questions to answer**:
+  - Which entry point and mode work with SAIA's base URL? instructor now
+    recommends ``from_provider`` (the quickstart still shows ``from_openai``),
+    and its default OpenAI mode, ``Mode.TOOLS``, needs a model with tool-calling
+    support. Is the answer schema-enforced in each mode?
+  - What does it add beyond the native path? Candidates: asking again when a
+    custom Pydantic validator fails (rules a JSON Schema cannot express, such as
+    "end date after start date"), streaming partial objects
+    (``create_partial``), and the parsed object together with the raw completion
+    (``create_with_completion``).
+  - What does asking again cost? Each retry is a full request against the
+    per-minute limit, and its ``usage`` adds up.
+  - How much can a dependency rest on it? instructor is widely used and actively
+    released (1.17.0 on 2026-09-09), but its development rests largely on one
+    person, its creator Jason Liu: 71 of the last 100 commits in its
+    `repository <https://github.com/567-labs/instructor>`_ (as of 2026-10).
+
+**Possible outcomes**:
+  A tested quickstart example (docs only), an optional ``[instructor]`` extra,
+  or nothing — whichever a real workload needs.
+
+
 ARCANA incremental indexing (gated on backend)
 -----------------------------------------------
 
