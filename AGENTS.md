@@ -15,14 +15,19 @@ changes.
 ## What this is
 
 A Python wrapper for the **GWDG SAIA** platform REST API (chat, ARCANA RAG,
-documents, models, voice, responses, OpenAI-compat). Library only — **no HTTP
+documents, models, voice, OpenAI-compat). Library only — **no HTTP
 server of its own**. The **sync core uses `requests`**; a **native async layer**
 (`saia_python.aio`, added in v0.9.0) is backed by `httpx.AsyncClient` and pulled
 in only via the optional `[async]` extra.
 
 - **Package:** `saia_python/` (services: `chat`, `arcana`, `documents`, `models`,
-  `voice`, `responses`, `openai_compat`, `rate_limits`, `auth`; `client.py` is the
-  entry point). Async twins live in `aio.py` + `_async_*.py`.
+  `voice`; plus `openai_compat`, `rate_limits`, `auth`; `client.py` is the entry
+  point). Async twins live in `aio.py` + `_async_*.py`.
+- **`responses.py`** — helpers for reading OpenAI-style ChatCompletion envelopes
+  (`text_of`); **not** a wrapper for OpenAI's Responses API. SAIA's
+  `/v1/responses` is **unsupported but seems to work**: GWDG's docs say the
+  Responses API is not provided, yet the route answers (verified 2026-10). To
+  re-check: `SAIA_RESPONSES_LIVE=1 pytest tests/test_live_responses_route.py`.
 - **`arcana_references.py`** — the GWDG ARCANA reference-citation grammar;
   consumed by downstream RAG adapters. Treat its public shape as an API contract.
 - **`tokenizer.py`** — tiktoken-based token counting (`[test]`/`dev` pull tiktoken).
@@ -42,7 +47,8 @@ in only via the optional `[async]` extra.
   `ruff format saia_python tests` before committing.
 - **`mypy`** (`quality.yml`) — the package ships `py.typed`; keep it typed.
 - **`pytest`** with coverage (`tests.yml`). Tests must not need a real key or the
-  network — mock SAIA calls.
+  network — mock SAIA calls. Live checks are opt-in behind a `SAIA_*_LIVE`
+  environment variable (skipped by default), like `SAIA_TOKENIZER_LIVE`.
 
 ## Release process
 
