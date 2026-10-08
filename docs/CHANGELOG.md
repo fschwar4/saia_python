@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Per-machine notes stay in a gitignored `CLAUDE.local.md`; `.gitignore` now
   allows a shared `.claude/settings.json` while keeping personal
   `.claude/settings.local.json` and `.claude/worktrees/` out of git.
+- **Opt-in live check for SAIA's `/v1/responses` route**
+  (`tests/test_live_responses_route.py`) — GWDG documents the Responses API as
+  unsupported, yet the route currently answers; the test tracks that against the
+  real service and is skipped unless `SAIA_RESPONSES_LIVE=1` is set.
+- **uv `dev` dependency group** (`ipykernel`) — lets a uv-managed `.venv` run
+  the example notebooks. pip installs are unaffected; `uv.lock` stays untracked.
 
 ## [0.9.0] — 2026-07-09
 
