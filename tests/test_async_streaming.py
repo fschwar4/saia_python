@@ -8,6 +8,7 @@ loop.
 from __future__ import annotations
 
 import asyncio
+import json
 
 import pytest
 
@@ -140,3 +141,26 @@ def test_aclose_is_idempotent():
 
     asyncio.run(_run())
     assert client.closed == 1
+
+
+def test_keeps_trailing_usage_chunk_with_empty_choices():
+    # Same contract as the sync twin: SAIA's final chunk has no choices but
+    # carries the token usage, and the stream must hand it over unchanged.
+    usage_chunk = {
+        "choices": [],
+        "usage": {"prompt_tokens": 104, "total_tokens": 124, "completion_tokens": 20},
+    }
+    lines = [
+        'data: {"choices": [{"delta": {"content": "Hi"}}]}',
+        f"data: {json.dumps(usage_chunk)}",
+        "data: [DONE]",
+    ]
+    client = FakeAsyncClient(
+        stream_responses=[FakeAsyncResponse(200, headers=rl_headers(), lines=lines)]
+    )
+
+    async def _run():
+        stream = await _open(client)
+        return [chunk async for chunk in stream]
+
+    assert asyncio.run(_run())[-1] == usage_chunk

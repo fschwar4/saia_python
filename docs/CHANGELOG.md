@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`tests/test_live_responses_route.py`) — GWDG documents the Responses API as
   unsupported, yet the route currently answers; the test tracks that against the
   real service and is skipped unless `SAIA_RESPONSES_LIVE=1` is set.
+- **Test coverage for the trailing stream usage chunk** — SAIA ends every chat
+  stream with a chunk whose `choices` is empty but which carries the token
+  `usage`; `tests/test_streaming.py` and `tests/test_async_streaming.py` now
+  check that the sync and async streams pass it through unchanged.
 - **uv `dev` dependency group** (`ipykernel`) — lets a uv-managed `.venv` run
   the example notebooks. pip installs are unaffected; `uv.lock` stays untracked.
 

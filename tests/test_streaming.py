@@ -1,5 +1,6 @@
 """Tests for saia_python._streaming — SSE line parsing."""
 
+import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -98,3 +99,26 @@ class TestSSEStream:
         stream = SSEStream(resp)
         stream.close()
         resp.close.assert_called()
+
+    def test_keeps_trailing_usage_chunk_with_empty_choices(self):
+        # SAIA ends every chat stream with a chunk that has no choices but carries
+        # the token usage, even without stream_options.include_usage. Callers bill
+        # from it, so the stream must hand it over unchanged.
+        usage_chunk = {
+            "choices": [],
+            "usage": {
+                "prompt_tokens": 104,
+                "total_tokens": 124,
+                "completion_tokens": 20,
+            },
+        }
+        resp = _make_response(
+            [
+                'data: {"choices": [{"delta": {"content": "Hi"}}]}',
+                f"data: {json.dumps(usage_chunk)}",
+                "data: [DONE]",
+            ]
+        )
+        resp.headers = {}
+        chunks = list(SSEStream(resp))
+        assert chunks[-1] == usage_chunk
