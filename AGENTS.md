@@ -45,7 +45,7 @@ in only via the optional `[async]` extra.
 - `requires-python = ">=3.10"`; CI runs the whole range. Code must parse/run on
   3.10 (e.g. no backslash in an f-string expression part — PEP 701 is 3.12+).
 - Dev install: `pip install -e ".[dev]"` (bundles `test,docs,lint`). Async work:
-  add the `[async]` extra. Version is in `pyproject.toml` (`version = "0.9.0"`).
+  add the `[async]` extra. Version is in `pyproject.toml` under `[project] version`.
 
 ## CI gates (must pass — `.github/workflows/`)
 
@@ -58,8 +58,10 @@ in only via the optional `[async]` extra.
 
 ## Release process
 
-Two-commit convention (code, then a standalone version bump), lightweight-tag the
-release commit, SemVer. The changelog is **`docs/CHANGELOG.md`** (Keep a Changelog
+Two-commit convention (code, then a standalone version bump committed as
+`release: vX.Y.Z`), annotated-tag the release commit
+(`git tag -a vX.Y.Z -m "vX.Y.Z — <summary>"`, the same text as the Release
+title), SemVer. The changelog is **`docs/CHANGELOG.md`** (Keep a Changelog
 format) and is the **source of truth**: at release, promote its `[Unreleased]`
 entries into a dated section, then **copy that section verbatim into the GitHub
 Release body** (`gh release create vX.Y.Z --notes-file …`) so the file and the

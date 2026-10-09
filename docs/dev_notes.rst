@@ -156,13 +156,14 @@ Release — no manual upload to PyPI and no stored token.
    .. code-block:: bash
 
       git add -A
-      git commit -m "Release X.Y.Z: <summary>"
+      git commit -m "release: vX.Y.Z"
       git push origin main
-      git tag -a vX.Y.Z -m "saia-python X.Y.Z"
+      git tag -a vX.Y.Z -m "vX.Y.Z — <summary>"
       git push origin vX.Y.Z
 
-5. **Create the GitHub Release** for tag ``vX.Y.Z`` (for example
-   ``gh release create vX.Y.Z --notes-file <changelog-section>``). Publishing
+5. **Create the GitHub Release** for tag ``vX.Y.Z``, titled like the tag
+   message (for example ``gh release create vX.Y.Z --title "vX.Y.Z — <summary>"
+   --notes-file <changelog-section>``). Publishing
    the Release fires the **Publish** workflow, which uploads to PyPI via
    Trusted Publishing; Zenodo simultaneously archives the Release and mints a
    DOI.
