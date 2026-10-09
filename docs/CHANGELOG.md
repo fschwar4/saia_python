@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Tokenizer catalogue: four newer GWDG models** — `deepseek-v4-flash-0731`,
+  `glm-5.3-flash`, `qwen3.8-27b` and `qwen3-coder-next` now resolve to their
+  Hugging Face repositories, taken from GWDG's model catalogue on 2026-10-09.
+  DeepSeek V4 ships no Jinja chat template, so `chat_template_tokens` falls back
+  to a plain `role: content` render with a warning for it; raw-text counts are
+  unaffected. Loading the GLM 5.3 Flash tokenizer needs transformers 5. The 11
+  catalogue models GWDG no longer serves, among them the three retired on
+  2026-10-08, stay listed in a block of their own, so their ids still resolve.
+
+### Fixed
+
+- **Examples no longer name retired models.** GWDG retired `openai-gpt-oss-120b`,
+  `devstral-2-123b-instruct-2512`, `mistral-medium-3.5-128b` and
+  `apertus-70b-instruct-2509` on 2026-10-08, and requests naming them now fail;
+  `llama-3.3-70b-instruct` had already gone. The README, the quickstart, the
+  docstrings and the example notebooks now use `deepseek-v4-flash-0731` for chat,
+  ARCANA and tool calling, and Gemma 4 / Qwen 3.6 for the tokenizer examples
+  (DeepSeek V4 has no chat template, and the Qwen 3.5 / 3.6 templates reject a
+  system prompt without a user turn). `examples/arcana_frontmatter_repro.py`
+  defaults to `deepseek-v4-flash-0731`; its committed JSON captures and notebook
+  outputs stay as recorded on 2026-06-10 with `openai-gpt-oss-120b`.
+
 ## [0.10.0] — 2026-10-09
 
 ### Added
