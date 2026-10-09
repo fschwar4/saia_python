@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.10.0] — 2026-10-09
 
 ### Added
 
@@ -18,8 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   often a reasoning model that spent its `max_tokens` thinking (`content: None`,
   `finish_reason: "length"`). The building blocks `response_format_for()` and
   `parse_structured()` are exported for callers who also need the raw response.
-  Pydantic stays optional: the package imports it only when
-  `parse_structured()` runs, and the `[test]` extra now lists `pydantic>=2`. Opt-in live check:
+  Pydantic stays optional: the package imports it only when `parse_structured()`
+  runs, and the `[test]` extra now lists `pydantic>=2`. Opt-in live check:
   `SAIA_STRUCTURED_LIVE=1 pytest tests/test_live_structured.py`.
 - **`AGENTS.md`** — a tool-neutral contributor/agent guide (package layout, CI
   gates, release process). Read natively by agent tools that support `AGENTS.md`,
@@ -549,7 +549,8 @@ open-source project tooling and incremental-upload helpers for ARCANA.
   resolution with owner-prefix handling.
 - Sphinx documentation (PyData theme) and a unit test suite.
 
-[Unreleased]: https://github.com/fschwar4/saia_python/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/fschwar4/saia_python/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/fschwar4/saia_python/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/fschwar4/saia_python/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/fschwar4/saia_python/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/fschwar4/saia_python/compare/v0.6.0...v0.7.0
