@@ -50,16 +50,64 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 # ---------------------------------------------------------------------------
 
 # Single source of truth: ``(api_model_id, display_name, hf_repo)`` for every
-# open-weight model GWDG hosts. ``api_model_id`` is the string passed as
-# ``"model"`` to the API (and returned as ``id`` by ``GET /models``);
+# open-weight model GWDG hosts or has hosted. ``api_model_id`` is the string
+# passed as ``"model"`` to the API (and returned as ``id`` by ``GET /models``);
 # ``display_name`` is the catalogue's "Model" column (and the ``name`` field of
 # the ``/models`` payload); ``hf_repo`` is the ``org/name`` the catalogue links
 # to on https://huggingface.co . Sourced from the GWDG model catalogue and
-# cross-checked against the live ``/models`` listing on 2026-06-21. Only
-# open-weight models are listed — the externally hosted, proprietary models
-# (GPT-5.x, o3, Claude, ...) have no downloadable tokenizer; see
+# cross-checked against the live ``/models`` listing on 2026-06-21; the models
+# added on 2026-10-09 come from the catalogue page alone. Only open-weight
+# models are listed — the externally hosted, proprietary models (GPT-5.x, o3,
+# Claude, ...) have no downloadable tokenizer; see
 # :data:`OPENAI_TIKTOKEN_ENCODINGS` for their byte-pair encodings.
 _MODEL_TABLE: list[tuple[str, str, str]] = [
+    # Served by GWDG as of 2026-10-09.
+    # DeepSeek V4 ships no Jinja chat template (only a Python encoder), so
+    # chat_template_tokens falls back to a plain render with a warning for it.
+    (
+        "deepseek-v4-flash-0731",
+        "DeepSeek V4 Flash 0731",
+        "deepseek-ai/DeepSeek-V4-Flash-0731",
+    ),
+    ("gemma-4-31b-it", "Gemma 4 31B Instruct", "google/gemma-4-31B-it"),
+    # Its tokenizer_config names TokenizersBackend, a transformers 5 class.
+    ("glm-5.3-flash", "GLM 5.3 Flash", "zai-org/GLM-5.3-Flash"),
+    (
+        "meta-llama-3.1-8b-instruct",
+        "Llama 3.1 8B Instruct",
+        "nvidia/Llama-3.1-8B-Instruct-FP8",
+    ),
+    (
+        "qwen3-30b-a3b-instruct-2507",
+        "Qwen 3 30B A3B Instruct 2507",
+        "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8",
+    ),
+    ("qwen3-coder-next", "Qwen 3 Coder Next", "Qwen/Qwen3-Coder-Next-FP8"),
+    (
+        "qwen3-omni-30b-a3b-instruct",
+        "Qwen 3 Omni 30B A3B Instruct",
+        "Qwen/Qwen3-Omni-30B-A3B-Instruct",
+    ),
+    ("qwen3.5-397b-a17b", "Qwen 3.5 397B A17B", "Qwen/Qwen3.5-397B-A17B-GPTQ-Int4"),
+    ("qwen3.6-35b-a3b", "Qwen 3.6 35B A3B", "Qwen/Qwen3.6-35B-A3B-FP8"),
+    ("qwen3.8-27b", "Qwen 3.8 27B", "Qwen/Qwen3.8-27B-FP8"),
+    # Embedding models — served via /embeddings rather than the chat /models
+    # listing, but their tokenizers are useful for sizing RAG chunks.
+    # ``qwen3-embedding-4b`` is the model ARCANA's RAG pipeline uses internally.
+    (
+        "qwen3-embedding-4b",
+        "Qwen3 Embedding 4B",
+        "Qwen/Qwen3-Embedding-4B",
+    ),
+    (
+        "e5-mistral-7b-instruct",
+        "E5 Mistral 7B Instruct",
+        "intfloat/e5-mistral-7b-instruct",
+    ),
+    # No longer served by GWDG (openai-gpt-oss-120b, devstral-2-123b-instruct-2512
+    # and apertus-70b-instruct-2509 were retired on 2026-10-08). Kept because
+    # their Hugging Face repos remain: the ids still resolve and the tokenizers
+    # still download.
     (
         "apertus-70b-instruct-2509",
         "Apertus 70B Instruct 2509",
@@ -75,15 +123,9 @@ _MODEL_TABLE: list[tuple[str, str, str]] = [
         "Devstral 2 123B Instruct 2512",
         "mistralai/Devstral-2-123B-Instruct-2512",
     ),
-    ("gemma-4-31b-it", "Gemma 4 31B Instruct", "google/gemma-4-31B-it"),
     ("glm-4.7", "GLM-4.7", "zai-org/GLM-4.7-FP8"),
     ("internvl3.5-30b-a3b", "InternVL 3.5 30B A3B", "OpenGVLab/InternVL3_5-30B-A3B-HF"),
     ("medgemma-27b-it", "MedGemma 27B Instruct", "google/medgemma-27b-it"),
-    (
-        "meta-llama-3.1-8b-instruct",
-        "Llama 3.1 8B Instruct",
-        "nvidia/Llama-3.1-8B-Instruct-FP8",
-    ),
     (
         "mistral-large-3-675b-instruct-2512",
         "Mistral Large 3 675B Instruct 2512",
@@ -91,40 +133,15 @@ _MODEL_TABLE: list[tuple[str, str, str]] = [
     ),
     ("openai-gpt-oss-120b", "GPT OSS 120B", "openai/gpt-oss-120b"),
     (
-        "qwen3-30b-a3b-instruct-2507",
-        "Qwen 3 30B A3B Instruct 2507",
-        "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8",
-    ),
-    (
         "qwen3-coder-30b-a3b-instruct",
         "Qwen 3 Coder 30B A3B Instruct",
         "Qwen/Qwen3-Coder-30B-A3B-Instruct-FP8",
     ),
-    (
-        "qwen3-omni-30b-a3b-instruct",
-        "Qwen 3 Omni 30B A3B Instruct",
-        "Qwen/Qwen3-Omni-30B-A3B-Instruct",
-    ),
     ("qwen3.5-122b-a10b", "Qwen 3.5 122B A10B", "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4"),
-    ("qwen3.5-397b-a17b", "Qwen 3.5 397B A17B", "Qwen/Qwen3.5-397B-A17B-GPTQ-Int4"),
-    ("qwen3.6-35b-a3b", "Qwen 3.6 35B A3B", "Qwen/Qwen3.6-35B-A3B-FP8"),
     (
         "teuken-7b-instruct-research",
         "Teuken 7B Instruct Research",
         "openGPT-X/Teuken-7B-instruct-research-v0.4",
-    ),
-    # Embedding models — served via /embeddings rather than the chat /models
-    # listing, but their tokenizers are useful for sizing RAG chunks.
-    # ``qwen3-embedding-4b`` is the model ARCANA's RAG pipeline uses internally.
-    (
-        "qwen3-embedding-4b",
-        "Qwen3 Embedding 4B",
-        "Qwen/Qwen3-Embedding-4B",
-    ),
-    (
-        "e5-mistral-7b-instruct",
-        "E5 Mistral 7B Instruct",
-        "intfloat/e5-mistral-7b-instruct",
     ),
 ]
 
@@ -279,7 +296,9 @@ def available_open_models() -> list[str]:
     """Return the GWDG open-weight model ids known to this module.
 
     These are the keys of :data:`GWDG_MODEL_REPOS` — the models for which a
-    tokenizer repository is published and can be downloaded.
+    tokenizer repository is published and can be downloaded, including the ones
+    GWDG no longer serves. For the models available right now, annotate the live
+    listing instead (:meth:`TokenizerService.available_repos`).
     """
     return list(GWDG_MODEL_REPOS)
 
@@ -289,12 +308,13 @@ def resolve_repo(model: str) -> str:
 
     Accepts, in order of preference:
 
-    1. A GWDG API model id (e.g. ``"openai-gpt-oss-120b"``) — exactly as
+    1. A GWDG API model id (e.g. ``"deepseek-v4-flash-0731"``) — exactly as
        returned by ``GET /models`` / passed as ``"model"`` in API calls.
     2. A full ``org/name`` Hugging Face repo (anything containing ``/``) — used
        verbatim, so callers can point at a model this module does not list yet.
-    3. A catalogue display name (e.g. ``"GPT OSS 120B"``) or a loose spelling of
-       an id — matched after normalisation (case / punctuation insensitive).
+    3. A catalogue display name (e.g. ``"DeepSeek V4 Flash 0731"``) or a loose
+       spelling of an id — matched after normalisation (case / punctuation
+       insensitive).
 
     Args:
         model: The model id, display name, or ``org/name`` repository.

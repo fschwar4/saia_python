@@ -98,7 +98,10 @@ class FakeTokenizer:
 
 
 def test_registry_is_well_formed():
-    assert len(GWDG_MODEL_REPOS) >= 17
+    assert len(GWDG_MODEL_REPOS) >= 23
+    # no id or display name is listed twice (the dicts would silently collapse)
+    assert len(GWDG_MODEL_REPOS) == len(tk._MODEL_TABLE)
+    assert len(tk._DISPLAY_NORM_TO_REPO) == len(tk._MODEL_TABLE)
     # every value is a plausible org/name HF repo
     for mid, repo in GWDG_MODEL_REPOS.items():
         assert "/" in repo and not repo.startswith("/"), (mid, repo)
@@ -107,9 +110,14 @@ def test_registry_is_well_formed():
 @pytest.mark.parametrize(
     "model,expected",
     [
+        ("deepseek-v4-flash-0731", "deepseek-ai/DeepSeek-V4-Flash-0731"),
+        ("glm-5.3-flash", "zai-org/GLM-5.3-Flash"),
+        ("qwen3.8-27b", "Qwen/Qwen3.8-27B-FP8"),
+        ("qwen3-coder-next", "Qwen/Qwen3-Coder-Next-FP8"),
+        ("meta-llama-3.1-8b-instruct", "nvidia/Llama-3.1-8B-Instruct-FP8"),
+        # No longer served by GWDG, but kept in the catalogue so old ids resolve.
         ("openai-gpt-oss-120b", "openai/gpt-oss-120b"),
         ("qwen3-coder-30b-a3b-instruct", "Qwen/Qwen3-Coder-30B-A3B-Instruct-FP8"),
-        ("meta-llama-3.1-8b-instruct", "nvidia/Llama-3.1-8B-Instruct-FP8"),
     ],
 )
 def test_resolve_repo_by_id(model, expected):
@@ -118,6 +126,9 @@ def test_resolve_repo_by_id(model, expected):
 
 def test_resolve_repo_by_display_name_and_passthrough():
     # Catalogue display name (also the live /models `name` field).
+    assert (
+        resolve_repo("DeepSeek V4 Flash 0731") == "deepseek-ai/DeepSeek-V4-Flash-0731"
+    )
     assert resolve_repo("GPT OSS 120B") == "openai/gpt-oss-120b"
     # Full org/name passes through untouched, even if unknown to the registry.
     assert resolve_repo("some-org/Custom-Tokenizer") == "some-org/Custom-Tokenizer"
