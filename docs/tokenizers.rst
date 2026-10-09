@@ -32,7 +32,9 @@ catalogue publishes the Hugging Face repositories only in human-readable form.
 :meth:`TokenizerService.available_repos
 <saia_python.tokenizer.TokenizerService.available_repos>` annotates the *live*
 model list with it (proprietary external models, e.g. GPT-5.x, o3, … map to
-``None``; for those, use ``tiktoken`` instead).
+``None``; for those, use ``tiktoken`` instead). Models GWDG has since retired
+stay in the catalogue, so their ids keep resolving and their tokenizers keep
+downloading.
 
 Tokenizer files are cached under ``~/saia_python/tokenizers/`` by default,
 overridable per call (``cache_dir=``) or globally via the ``SAIA_TOKENIZER_DIR``
@@ -96,7 +98,7 @@ The result separates the raw text from the template's scaffolding:
    from saia_python import chat_template_tokens
 
    r = chat_template_tokens(
-       "openai-gpt-oss-120b",
+       "gemma-4-31b-it",
        system="You are a careful assistant. Cite sources.",
        user="Summarise the attached report.",
    )
@@ -106,7 +108,7 @@ The result separates the raw text from the template's scaffolding:
    print("subword fertility:", round(r.fertility, 3))
 
    # The system prompt may instead be read from a file:
-   r = chat_template_tokens("openai-gpt-oss-120b", system_file="system_prompt.md")
+   r = chat_template_tokens("gemma-4-31b-it", system_file="system_prompt.md")
 
 :func:`~saia_python.tokenizer.chat_template_length`,
 :func:`~saia_python.tokenizer.special_token_overhead`, and

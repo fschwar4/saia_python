@@ -76,7 +76,7 @@ async def main():
     async with AsyncSAIAClient() as client:
         # Non-streaming RAG chat
         answer = await client.arcana.chat(
-            model="openai-gpt-oss-120b",
+            model="deepseek-v4-flash-0731",
             messages=[{"role": "user", "content": "Summarise the DLBCL first line."}],
             arcana_id="owner/kb",
         )

@@ -46,6 +46,10 @@ HOW TO RUN
     report. The companion notebook ``arcana_frontmatter_repro.ipynb`` walks
     the same steps interactively with the full JSON shown per step.
 
+    The JSON files and notebook outputs committed beside this script were
+    captured on 2026-06-10 with ``openai-gpt-oss-120b``, which GWDG retired
+    on 2026-10-08. They stay as recorded; a new run uses ``DEFAULT_MODEL``.
+
 EXIT CODES
     0   ran to a verdict (see the RESULT block at the end)
     1   operational error (auth, upload, indexing, …)
@@ -68,7 +72,7 @@ import requests
 DEFAULT_BASE_URL = "https://chat-ai.academiccloud.de/v1"
 # An unknown model makes the gateway answer with an opaque 500, so the
 # script verifies the model against GET /models before chatting.
-DEFAULT_MODEL = "openai-gpt-oss-120b"
+DEFAULT_MODEL = "deepseek-v4-flash-0731"
 
 # ── The test document ────────────────────────────────────────────────────
 # The metadata header mirrors, field for field, the documented Docling

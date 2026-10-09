@@ -12,7 +12,7 @@ calls and ``async for`` over a stream::
     async with AsyncSAIAClient() as client:
         # non-streaming RAG chat
         answer = await client.arcana.chat(
-            model="openai-gpt-oss-120b",
+            model="deepseek-v4-flash-0731",
             messages=[{"role": "user", "content": "..."}],
             arcana_id="owner/kb",
         )

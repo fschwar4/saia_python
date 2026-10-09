@@ -157,7 +157,7 @@ OOP Interface
    print(result["index"])             # final index status
 
    response = client.arcana.chat(
-       model="llama-3.3-70b-instruct",
+       model="deepseek-v4-flash-0731",
        messages=[{"role": "user", "content": "Summarize the document."}],
        arcana_id=arcana_ids["default"],
    )
@@ -196,7 +196,7 @@ JSON schemas; the model decides when to invoke them:
    }]
 
    response = client.chat.completions(
-       model="llama-3.3-70b-instruct",
+       model="deepseek-v4-flash-0731",
        messages=[{"role": "user", "content": "Weather in Berlin?"}],
        tools=tools,
    )
@@ -208,7 +208,7 @@ JSON schemas; the model decides when to invoke them:
        result = {"temp_c": 18, "condition": "partly cloudy"}
 
        final = client.chat.completions(
-           model="llama-3.3-70b-instruct",
+           model="deepseek-v4-flash-0731",
            messages=[
                {"role": "user", "content": "Weather in Berlin?"},
                msg,
@@ -303,7 +303,7 @@ Requires ``pip install saia-python[openai]``.
 
    # Chat completions via OpenAI SDK
    response = openai_client.chat.completions.create(
-       model="llama-3.3-70b-instruct",
+       model="deepseek-v4-flash-0731",
        messages=[{"role": "user", "content": "Hello!"}],
    )
 
@@ -333,7 +333,7 @@ Integration with ecosystem tools:
    from langchain_openai import ChatOpenAI
 
    llm = ChatOpenAI(
-       model="llama-3.3-70b-instruct",
+       model="deepseek-v4-flash-0731",
        openai_api_key=client._api_key,
        openai_api_base=client._base_url,
    )
@@ -351,9 +351,9 @@ fertility. Requires ``pip install saia-python[tokenizer]``. Tokenizer files
 
    from saia_python import chat_template_tokens, token_distribution
 
-   # How many tokens does a system prompt cost on gpt-oss-120b?
+   # How many tokens does a system prompt cost on Gemma 4?
    r = chat_template_tokens(
-       "openai-gpt-oss-120b",
+       "gemma-4-31b-it",
        system="You are a careful assistant.",
        user="Summarise the attached report.",
    )
@@ -362,7 +362,7 @@ fertility. Requires ``pip install saia-python[tokenizer]``. Tokenizer files
    print("subword fertility:", round(r.fertility, 3))
 
    # The system prompt may also be read from a .txt / .md file:
-   r = chat_template_tokens("openai-gpt-oss-120b", system_file="system_prompt.md")
+   r = chat_template_tokens("gemma-4-31b-it", system_file="system_prompt.md")
 
    # Size a RAG corpus against the embedding model ARCANA uses internally:
    dist = token_distribution("path/to/markdown", "qwen3-embedding-4b")

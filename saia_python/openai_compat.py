@@ -43,7 +43,7 @@ def create_openai_client(
 
         client = create_openai_client()
         response = client.chat.completions.create(
-            model="llama-3.3-70b-instruct",
+            model="deepseek-v4-flash-0731",
             messages=[{"role": "user", "content": "Hello!"}],
         )
 
