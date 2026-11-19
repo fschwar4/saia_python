@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Tokenizer catalogue: four more GWDG models** — `eurollm-22b-instruct-2512`,
+  `deepseek-v4.1-flash-1017`, `glm-5.3` and `mistral-large-4-1t-a52b` now
+  resolve to their Hugging Face repositories. All four are in GWDG's live
+  `/models` listing as of 2026-11-19. EuroLLM's repository comes from GWDG's
+  model catalogue. The other three are not in the catalogue yet, so they map to
+  the vendors' official repositories whose names match the live `/models` name.
+  For all four, the raw-text token count matches the `prompt_tokens` that
+  SAIA's `/completions` reports, except that SAIA adds a start token for Mistral.
+
 ## [0.10.1] — 2026-10-09
 
 ### Added

@@ -56,12 +56,18 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 # the ``/models`` payload); ``hf_repo`` is the ``org/name`` the catalogue links
 # to on https://huggingface.co . Sourced from the GWDG model catalogue and
 # cross-checked against the live ``/models`` listing on 2026-06-21; the models
-# added on 2026-10-09 come from the catalogue page alone. Only open-weight
+# added on 2026-10-09 come from the catalogue page alone. Of the four added on
+# 2026-11-19, EuroLLM is on the catalogue page; deepseek-v4.1-flash-1017,
+# glm-5.3 and mistral-large-4-1t-a52b were served by ``/models`` before the
+# catalogue listed them, so their repos are the vendors' official repos whose
+# names match the live ``name`` field (GWDG may serve a quantised variant; the
+# tokenizer is the same). Their raw-text counts matched the ``prompt_tokens``
+# of SAIA's ``/completions`` on 2026-11-19. Only open-weight
 # models are listed — the externally hosted, proprietary models (GPT-5.x, o3,
 # Claude, ...) have no downloadable tokenizer; see
 # :data:`OPENAI_TIKTOKEN_ENCODINGS` for their byte-pair encodings.
 _MODEL_TABLE: list[tuple[str, str, str]] = [
-    # Served by GWDG as of 2026-10-09.
+    # Served by GWDG as of 2026-11-19.
     # DeepSeek V4 ships no Jinja chat template (only a Python encoder), so
     # chat_template_tokens falls back to a plain render with a warning for it.
     (
@@ -69,13 +75,30 @@ _MODEL_TABLE: list[tuple[str, str, str]] = [
         "DeepSeek V4 Flash 0731",
         "deepseek-ai/DeepSeek-V4-Flash-0731",
     ),
+    # Unlike V4, the V4.1 repo ships a chat_template.jinja.
+    (
+        "deepseek-v4.1-flash-1017",
+        "DeepSeek V4.1 Flash 1017",
+        "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+    ),
+    (
+        "eurollm-22b-instruct-2512",
+        "EuroLLM 22B Instruct 2512",
+        "utter-project/EuroLLM-22B-Instruct-2512",
+    ),
     ("gemma-4-31b-it", "Gemma 4 31B Instruct", "google/gemma-4-31B-it"),
+    ("glm-5.3", "GLM 5.3", "zai-org/GLM-5.3"),
     # Its tokenizer_config names TokenizersBackend, a transformers 5 class.
     ("glm-5.3-flash", "GLM 5.3 Flash", "zai-org/GLM-5.3-Flash"),
     (
         "meta-llama-3.1-8b-instruct",
         "Llama 3.1 8B Instruct",
         "nvidia/Llama-3.1-8B-Instruct-FP8",
+    ),
+    (
+        "mistral-large-4-1t-a52b",
+        "Mistral Large 4 1T A52B",
+        "mistralai/Mistral-Large-4-1T-A52B",
     ),
     (
         "qwen3-30b-a3b-instruct-2507",

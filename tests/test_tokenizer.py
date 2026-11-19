@@ -98,7 +98,7 @@ class FakeTokenizer:
 
 
 def test_registry_is_well_formed():
-    assert len(GWDG_MODEL_REPOS) >= 23
+    assert len(GWDG_MODEL_REPOS) >= 27
     # no id or display name is listed twice (the dicts would silently collapse)
     assert len(GWDG_MODEL_REPOS) == len(tk._MODEL_TABLE)
     assert len(tk._DISPLAY_NORM_TO_REPO) == len(tk._MODEL_TABLE)
@@ -111,7 +111,11 @@ def test_registry_is_well_formed():
     "model,expected",
     [
         ("deepseek-v4-flash-0731", "deepseek-ai/DeepSeek-V4-Flash-0731"),
+        ("deepseek-v4.1-flash-1017", "deepseek-ai/DeepSeek-V4.1-Flash-1017"),
+        ("eurollm-22b-instruct-2512", "utter-project/EuroLLM-22B-Instruct-2512"),
+        ("glm-5.3", "zai-org/GLM-5.3"),
         ("glm-5.3-flash", "zai-org/GLM-5.3-Flash"),
+        ("mistral-large-4-1t-a52b", "mistralai/Mistral-Large-4-1T-A52B"),
         ("qwen3.8-27b", "Qwen/Qwen3.8-27B-FP8"),
         ("qwen3-coder-next", "Qwen/Qwen3-Coder-Next-FP8"),
         ("meta-llama-3.1-8b-instruct", "nvidia/Llama-3.1-8B-Instruct-FP8"),
@@ -130,6 +134,9 @@ def test_resolve_repo_by_display_name_and_passthrough():
         resolve_repo("DeepSeek V4 Flash 0731") == "deepseek-ai/DeepSeek-V4-Flash-0731"
     )
     assert resolve_repo("GPT OSS 120B") == "openai/gpt-oss-120b"
+    # "GLM 5.3" and "GLM 5.3 Flash" are different models; neither shadows the other.
+    assert resolve_repo("GLM 5.3") == "zai-org/GLM-5.3"
+    assert resolve_repo("GLM 5.3 Flash") == "zai-org/GLM-5.3-Flash"
     # Full org/name passes through untouched, even if unknown to the registry.
     assert resolve_repo("some-org/Custom-Tokenizer") == "some-org/Custom-Tokenizer"
 
