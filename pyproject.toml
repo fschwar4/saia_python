@@ -71,6 +71,10 @@ async = [
 tokenizer = [
     # AutoTokenizer + chat-template (apply_chat_template) engine
     "transformers>=4.40",
+    # renders chat templates; transformers pulls it only via its own
+    # [chat-template] extra, and without it chat_template_tokens falls back to a
+    # plain "role: content" render
+    "jinja2>=3.1",
     # downloads tokenizer files (snapshot_download) to the local cache
     "huggingface-hub>=0.20",
     # byte-pair encodings for the externally hosted OpenAI models

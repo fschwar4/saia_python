@@ -18,6 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   For all four, the raw-text token count matches the `prompt_tokens` that
   SAIA's `/completions` reports, except that SAIA adds a start token for Mistral.
 
+### Fixed
+
+- **The `[tokenizer]` extra now installs `jinja2`.** transformers pulls it only
+  through its own `[chat-template]` extra. Without it, `chat_template_tokens`
+  could not apply the model's chat template and fell back to a plain
+  `role: content` render, noting this in `ChatTokenCount.warnings`, so its
+  counts left out the template's special tokens. Development installs never
+  showed this because Sphinx and Jupyter bring `jinja2` along. With `jinja2`
+  installed, the counts for five GWDG models (qwen3-30b-a3b-instruct-2507,
+  EuroLLM, GLM 5.3 Flash, Mistral Large 4, DeepSeek V4.1) match the chat
+  `prompt_tokens` SAIA reports exactly (checked 2026-11-19).
+
 ## [0.10.1] — 2026-10-09
 
 ### Added
