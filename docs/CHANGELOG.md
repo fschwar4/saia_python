@@ -17,6 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the vendors' official repositories whose names match the live `/models` name.
   For all four, the raw-text token count matches the `prompt_tokens` that
   SAIA's `/completions` reports, except that SAIA adds a start token for Mistral.
+- **Repository hygiene test** (`tests/test_public_repo_hygiene.py`). Tracked
+  files must not contain absolute home-directory paths or rule numbers copied
+  from other repositories' agent instructions. Notebooks must use the generic
+  `Python 3` kernel name.
+
+### Changed
+
+- Docs, docstrings, tests and examples describe downstream consumers
+  generically. Notebook kernel metadata uses `Python 3`.
 
 ### Fixed
 
@@ -120,7 +129,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pure request builders** (`saia_python._payloads`, re-exported at top level):
   `build_chat_body`, `apply_arcana_fields`, `arcana_chat_headers`, and the
   `INFERENCE_SERVICE` constant. Transport-free, so the sync services, the async
-  services, and external gateways (the AVOR adapter) share **one** definition of
+  services, and external gateways (e.g. a proxy) share **one** definition of
   the three-part ARCANA injection invariant (`enable-tools` + `arcana.id` body
   fields + the `inference-service` header) — defined and unit-tested once.
 

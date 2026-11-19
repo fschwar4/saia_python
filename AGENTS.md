@@ -8,7 +8,8 @@ changes.
 > **This is a PUBLIC repository** (AGPL-3.0-only; published to PyPI + Zenodo).
 > This file is **committed and shared** — the single source of truth for project
 > instructions; it travels to every clone/teammate via git. Therefore: **no
-> secrets, no API keys, no private/downstream-internal details** here.
+> secrets, no API keys, no private/downstream-internal details** here (see
+> "Public repository: no downstream details" below).
 > Machine-specific residue goes in `CLAUDE.local.md` (gitignored, imported by
 > `CLAUDE.md`; create your own per machine).
 
@@ -83,3 +84,39 @@ create + publish the Release.
   consumer to `@main`.
 - More: `README.md` (Quick Start, Supported Services, Repository Structure) and
   the Sphinx docs under `docs/` (`pip install -e ".[docs]"`).
+
+## Public repository: no downstream details
+
+Everything committed here stays public for good. That covers the GitHub history,
+every Zenodo snapshot and every PyPI release, and past releases cannot be edited.
+So nothing in this repo may describe a project that *uses* saia-python.
+
+**Where the rule applies:**
+- code, docstrings, comments, tests and fixtures;
+- ADRs, proposals and notebooks, including notebook metadata;
+- the CHANGELOG, commit messages, release notes and PR texts.
+
+**What it rules out:**
+- names of downstream projects, products, services, companies or deployments;
+- usage figures (number of users, requests, documents) and domain details of a
+  deployment;
+- rule numbers, ADR numbers, file paths, versions or commit hashes from other
+  repositories;
+- absolute local paths (`/Users/…`, `/home/…`), user names, and environment or
+  kernel names. Notebooks keep the generic `Python 3` kernel name.
+- anything copied from another repository's private instructions.
+
+Describe consumers generically, e.g. "a downstream gateway", "a proxy" or "a
+document-ingestion pipeline". Give the technical reason for a change, not the
+name of whoever needs it. The rule applies just the same when you work on
+saia-python from a session in another repository.
+
+**The only exception** is a showcase project: it may be named (e.g. in a "Used
+by" section) once the maintainer has explicitly approved that specific mention
+beforehand. Without such approval the rule covers every project.
+
+**Guards:**
+- `tests/test_public_repo_hygiene.py` checks the generic patterns in CI.
+- Maintainers also run a local pre-commit and commit-msg hook with a private
+  denylist. The denylist is kept outside the repository and never committed.
+- Bypass the hook (`--no-verify`) only for an approved exception.
