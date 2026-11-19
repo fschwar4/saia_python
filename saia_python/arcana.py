@@ -444,7 +444,7 @@ class ArcanaService:
             APIError: If recreation fails *after* the delete already
                 succeeded — the arcana is then gone. The message says so
                 explicitly so the operator recreates it before any consumer
-                (adapter / manifest pin) points at the ID.
+                (a config or manifest pin) points at the ID.
         """
         short = extract_arcana_name(name)
         self.delete(name)
@@ -455,7 +455,7 @@ class ArcanaService:
                 f"arcana {short!r} was DELETED but could not be recreated: {e}. "
                 f"The arcana no longer exists — recreate it (e.g. "
                 f"create({short!r}, append_uuid=False)) before any consumer "
-                f"(adapter / manifest pin) points at its ID."
+                f"(a config or manifest pin) points at its ID."
             ) from e
 
     def list(self) -> list[dict]:

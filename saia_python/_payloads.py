@@ -3,8 +3,8 @@
 Transport-free — no ``Session``, no ``httpx.AsyncClient``, no I/O — so these
 helpers are reused **verbatim** by the sync services (:mod:`saia_python.chat`,
 :mod:`saia_python.arcana`), the async services (:mod:`saia_python.aio`), and
-external gateways that assemble the request themselves (the AVOR adapter builds
-its own body so it can inject a per-conversation system prompt, then reuses
+external gateways that assemble the request themselves (e.g. a proxy that builds
+its own body to inject a system prompt, then reuses
 :func:`apply_arcana_fields` to keep the ARCANA injection identical to ours).
 
 Keeping the ARCANA injection in ONE place matters: GWDG only routes a request

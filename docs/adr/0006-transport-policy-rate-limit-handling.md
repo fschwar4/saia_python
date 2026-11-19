@@ -12,8 +12,8 @@ deliberately made the library **passive** — it surfaces `RateLimitInfo` and le
 the caller decide. So every batch or unattended consumer hand-rolls its own
 retry/backoff, duplicated and usually wrong (fixed sleeps, no jitter, no
 awareness of *which* window was hit, and prone to blocking for ~an hour on the
-daily window). The driving case is the AvorMedical guideline-ingestion pipeline,
-which reliably trips the 30/min limit.
+daily window). The driving case was a downstream document-ingestion pipeline,
+which reliably tripped the 30/min limit.
 
 Two dispatch-boundary policies already existed in ad-hoc form: the v0.5.0
 control-plane timeout wrapper (`ArcanaService._request`), and the
@@ -37,7 +37,7 @@ logic live; and what should the default be?
 - **(b) Opt-in retry** (default off).
 - **(c) Default-on retry at a single shared dispatch seam** — scoped to
   idempotent calls, opt-out.
-- **(d) Per-consumer retry** — the avor-backend stop-gap.
+- **(d) Per-consumer retry** — the stop-gap a downstream consumer had added.
 - **(e) Session-mounted `HTTPAdapter`** — retry/timeout on the shared session.
 
 ## Decision Outcome

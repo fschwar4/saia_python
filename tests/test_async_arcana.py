@@ -2,7 +2,7 @@
 (the chat + read-only control-plane subset).
 
 The headline invariant is the same three-part ARCANA injection the sync
-``ArcanaService.chat`` and the AVOR adapter enforce (Rule #6): ``enable-tools``
+``ArcanaService.chat`` and downstream gateways rely on: ``enable-tools``
 + ``arcana.id`` in the body **and** the ``inference-service`` header.
 """
 

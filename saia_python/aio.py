@@ -228,8 +228,8 @@ class AsyncArcanaService:
         :func:`~saia_python._payloads.arcana_chat_headers`, so it matches the
         sync :meth:`ArcanaService.chat`. One deliberate difference: the injection
         is applied **last**, so the retrieval fields cannot be disabled by a
-        stray caller key (the sync path lets a ``**kwargs`` override win) — the
-        Rule #6-safe behaviour.
+        stray caller key (the sync path lets a ``**kwargs`` override win), so
+        retrieval cannot be switched off by accident.
 
         Args:
             api_key: Override the instance key for this call — lets one pooled

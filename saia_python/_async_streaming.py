@@ -44,8 +44,8 @@ class AsyncSSEStream:
       status is an error.
     * ``async for line in stream.aiter_lines()`` — the raw decoded ``str`` SSE
       lines. Does **not** raise, so a gateway can frame upstream errors itself
-      (this is what the AVOR adapter uses to keep its verbatim ``[DONE]`` /
-      non-``data:`` line passthrough).
+      (for a proxy that passes ``[DONE]`` and non-``data:`` lines through
+      verbatim).
 
     Either way, use it as an async context manager (``async with stream:``) or
     call :meth:`aclose` so the upstream connection is released.

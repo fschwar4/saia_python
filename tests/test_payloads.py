@@ -1,8 +1,8 @@
 """Tests for the pure request builders in :mod:`saia_python._payloads`.
 
 Transport-free, so these run with no client at all. They pin the ARCANA
-injection (Rule #6) that the sync services, the async services, and the AVOR
-adapter all share.
+injection that the sync services, the async services, and external gateways
+all share.
 """
 
 from __future__ import annotations

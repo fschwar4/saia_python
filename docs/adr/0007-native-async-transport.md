@@ -13,10 +13,10 @@ which hands back an `openai.AsyncOpenAI` — the OpenAI SDK's own transport, whi
 ARCANA retrieval. So there is no async path that carries the library's own
 behaviour.
 
-The forcing case is the AVOR adapter: a FastAPI (ASGI) reverse proxy in front of
-GWDG serving ~20 clinicians concurrently on one event loop. A blocking
+The forcing case was a downstream gateway: a FastAPI (ASGI) reverse proxy in
+front of GWDG serving many users concurrently on one event loop. A blocking
 `requests` call there stalls *every* concurrent user for the duration of one
-(minutes-long) RAG answer, so the adapter hand-rolled its own `httpx.AsyncClient`
+(minutes-long) RAG answer, so that gateway hand-rolled its own `httpx.AsyncClient`
 GWDG transport — duplicating the chat-completion shape, the ARCANA injection
 (the three-part `enable-tools` + `arcana.id` + `inference-service` invariant),
 and SSE decoding, with **no** rate-limit retry. Two implementations of "talk to
@@ -66,7 +66,7 @@ Chosen: **(c)**. A new `saia_python/aio.py` (`AsyncSAIAClient` +
 - **The ARCANA injection invariant lives in one pure place.** New transport-free
   `_payloads.py` (`build_chat_body`, `apply_arcana_fields`, `arcana_chat_headers`)
   is reused by the sync services, the async services, **and** external gateways
-  that assemble their own body (the adapter) — so the three-part retrieval
+  that assemble their own body (such as that gateway) — so the three-part retrieval
   invariant is defined once and unit-tested once.
 - **`aexecute` preserves the ADR-0006 contract**: it returns the raw response on
   give-up (never raises), so `raise_for_status` still fires downstream. On a 429
@@ -79,7 +79,7 @@ Chosen: **(c)**. A new `saia_python/aio.py` (`AsyncSAIAClient` +
   exposed — never mid-stream, exactly like the sync path. It offers **two**
   consumption modes: decoded `dict` chunks (high-level, raises on error status)
   and raw lines via `aiter_lines()` (low-level, no raise) so a gateway can frame
-  upstream errors itself — the AVOR adapter uses the latter to keep its verbatim
+  upstream errors itself — the gateway above uses the latter to keep its verbatim
   `[DONE]` / non-`data:` passthrough and its own error-chunk framing.
 - **`httpx` is optional.** A `[async]` extra; `saia_python.aio` imports it only
   when an `AsyncSAIAClient` is constructed (a pointed ImportError otherwise), and
@@ -101,10 +101,10 @@ additive.
 
 ### Consequences
 
-- Good — one retry policy and one ARCANA invariant across sync + async + the
-  adapter; ASGI consumers get a first-class async client that carries the
+- Good — one retry policy and one ARCANA invariant across sync + async +
+  downstream gateways; ASGI consumers get a first-class async client that carries the
   library's behaviour instead of the `openai_async` shim that drops it.
-- Good — the adapter can delete its bespoke retry-less GWDG transport and consume
+- Good — the gateway can delete its bespoke retry-less GWDG transport and consume
   `aexecute` / `AsyncSSEStream`, keeping only its presentation layer (the
   references rewriter).
 - Trade-off — the sync/async duplication tax is real: `execute`,
@@ -132,5 +132,5 @@ Extends [ADR-0006](0006-transport-policy-rate-limit-handling.md) — the same
 `RetryPolicy` now drives an async transport. Complements
 [ADR-0001](0001-openai-as-an-optional-extra.md) — `openai_async` remains for
 OpenAI-SDK compatibility, but the native async client is the path that carries
-retry + rate limits + ARCANA. The consuming-side decision (the AVOR adapter
-dropping its bespoke transport) is recorded in the frontend repo's ADR series.
+retry + rate limits + ARCANA. The consuming-side decision (the gateway dropping
+its bespoke transport) is recorded in that project's own decision records.

@@ -14,8 +14,8 @@ wire shape.
 
 Two kinds of consumer need it: `saia-python`'s own users (who call
 `arcana.chat()` and get the raw dump back), and external OpenAI-compatible
-services in front of SAIA — e.g. the `avor-adapter` that backs a LibreChat
-deployment, which already carries ~750 lines of reference handling. Each was
+services in front of SAIA — e.g. a gateway in front of a chat front end,
+which already carried its own reference handling. Each was
 re-deriving the same GWDG regex independently. Where should that knowledge live?
 
 ## Decision Drivers
@@ -64,8 +64,8 @@ the caller's responsibility.
 ### Confirmation
 
 `tests/test_arcana_references.py` covers prose/reference splitting, de-dup,
-distance parsing, and the `arcana.event` filter. The `avor-adapter` frontend
-consumes these functions in place of its former private regexes.
+distance parsing, and the `arcana.event` filter. A downstream gateway consumes
+these functions in place of its former private regexes.
 
 ## More Information
 

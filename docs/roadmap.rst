@@ -142,16 +142,12 @@ callers catch *two* exception families: ``SAIAError`` for HTTP-status failures
 and the raw ``requests.*`` transport errors. Wrapping the transport errors in a
 ``SAIAError`` subclass would collapse that to a single catch surface.
 
-**Status — deferred (low value for the current consumer)**:
-  The production ingestion consumer is ``requests``-native: it imports only
-  ``SAIAClient`` (catches no ``saia_python`` exceptions), and its
-  transport-drop detection is built directly on ``requests.exceptions.*`` plus
-  stdlib socket errors, walking the ``__cause__`` / ``__context__`` chain with a
-  regex fallback explicitly "for SDK-specific exception classes that don't
-  subclass ``requests.exceptions.*``." It already defends against wrapped
-  exceptions, so a unified type adds nothing for it — and a careless version
-  could regress it. The proposal's real audience is *simple* consumers that
-  would rather not touch ``requests`` at all.
+**Status — deferred (low value so far)**:
+  Production consumers that already detect transport drops themselves, directly
+  on ``requests.exceptions.*`` plus stdlib socket errors and walking the
+  ``__cause__`` / ``__context__`` chain, gain nothing from a unified type, and a
+  careless version could regress them. The proposal's real audience is
+  *simple* consumers that would rather not touch ``requests`` at all.
 
 **Requirements if revisited** (must be strictly backward-compatible):
   - **Dual-base the wrapper** — subclass *both* ``SAIAError`` and the underlying

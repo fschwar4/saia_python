@@ -132,7 +132,7 @@ def test_async_arcana_chat_real_httpx():
 
     res = asyncio.run(_run())
     assert res["choices"][0]["message"]["content"] == "ok"
-    # The Rule #6 triple actually reaches the wire (real httpx request).
+    # The three-part ARCANA injection actually reaches the wire (real httpx request).
     assert seen["body"]["enable-tools"] is True
     assert seen["body"]["arcana"] == {"id": "owner/kb"}
     assert seen["headers"]["inference-service"] == "saia-openai-gateway"

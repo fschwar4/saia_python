@@ -55,7 +55,7 @@ def test_raw_aiter_lines_are_verbatim():
         return [ln async for ln in stream.aiter_lines()]
 
     out = asyncio.run(_run())
-    assert out == lines  # no filtering, no [DONE] swallowing — the adapter needs this
+    assert out == lines  # no filtering, no [DONE] swallowing — a proxy needs this
     assert client.closed == 1
 
 

@@ -5,7 +5,7 @@ responses, an injectable ``sleep`` recorder) but for the async seam: awaitable
 ``post``/``get`` and an ``async with`` ``stream(...)`` context manager. No
 network, no real ``httpx`` — the transport modules only *call methods* on the
 client, so a duck-typed fake is enough. Tests drive the coroutines with
-``asyncio.run`` (no ``pytest-asyncio`` dependency), matching the AVOR adapter.
+``asyncio.run`` (no ``pytest-asyncio`` dependency).
 """
 
 from __future__ import annotations

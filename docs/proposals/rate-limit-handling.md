@@ -5,7 +5,7 @@
 **Relates to:** [ADR-0002](../adr/0002-rate-limit-metadata-on-responses.md) (rate-limit metadata on responses),
 [ADR-0004](../adr/0004-non-blocking-operations-via-futures.md) (non-blocking via Futures + dedicated Sessions),
 and the v0.5.0 control-plane timeout work (`arcana._request` / `DEFAULT_TIMEOUT`).
-**Reference implementation:** a proven minimal core shipped in **avor-backend v0.8.11** (2026-06-02) — the lift-and-generalise seed (§12).
+**Reference implementation:** a proven minimal core shipped in a downstream consumer (2026-06-02) — the lift-and-generalise seed (§12).
 
 ---
 
@@ -33,7 +33,7 @@ SAIA enforces layered rate limits (observed live, 2026-06-02):
 | day    | 1000  |
 | month  | 3000  |
 
-Today a 429 surfaces as `RateLimitError` and **aborts the call**. Every batch or unattended workload must hand-roll its own retry/backoff — duplicated across consumers, and usually wrong. The driving case is the **AvorMedical guideline-ingestion pipeline** (~26 chapter PDFs via the Docling endpoint + enrichment / parser-comparison runs): against a 30/min ceiling it *reliably* trips the per-minute limit. Conversions and inference reads are idempotent, so bounded auto-retry carries no correctness risk for the common batch path — which is why **on-by-default** is the right ergonomics for this library.
+Today a 429 surfaces as `RateLimitError` and **aborts the call**. Every batch or unattended workload must hand-roll its own retry/backoff — duplicated across consumers, and usually wrong. The driving case is a **downstream document-ingestion pipeline** (batches of PDFs through the Docling endpoint): against a 30/min ceiling it *reliably* trips the per-minute limit. Conversions and inference reads are idempotent, so bounded auto-retry carries no correctness risk for the common batch path — which is why **on-by-default** is the right ergonomics for this library.
 
 ## 2. Where this sits — existing architecture (ground truth, with file refs)
 
@@ -94,7 +94,7 @@ def execute(session, method, url, *, policy, idempotent, sleep=time.sleep, **kwa
 - **Enforced at the shared dispatch seam** in `saia_python/_http.py` (`execute()`), the lowest level common to the synchronous path **and** the ADR-0004 worker threads — so a blocking call and a `wait=False` `Future` inherit the same policy from the same code.
 - **Overridable per call**: a method-level `retry=` kwarg (`RetryPolicy` | `True` | `False`) wins over the client default for that one call.
 
-It is **not** implemented per service and **not** in the consumer — that is the whole point (§11 retires the backend's per-consumer wrapper).
+It is **not** implemented per service and **not** in the consumer — that is the whole point (§11 retires the consumer's own wrapper).
 
 ## 5. Reactive retry — the wait policy
 
@@ -144,7 +144,7 @@ The library cannot *infer* whether an arbitrary POST is safe to replay; the **ca
 |------|:---:|:---:|
 | chat / arcana.chat / documents.convert / voice | `True` | **yes** |
 | ARCANA `create` / `delete` / `delete_index` | `False` | no (raises) |
-| ARCANA `upload` (PUT overwrite) | `False` default | no — *may* opt in (backend ADR-0007: PUT is idempotent) |
+| ARCANA `upload` (PUT overwrite) | `False` default | no — *may* opt in (a downstream consumer verified that PUT overwrite is idempotent) |
 
 Separation of concerns: the **call site owns semantics** (`idempotent=`), the **policy owns aggressiveness** (`retry_mutations`, or a per-call `retry=`).
 
@@ -183,14 +183,14 @@ A structured `RetryPolicy` is preferred over a growing kwargs list: composable, 
 
 ## 11. Phased rollout & migration
 
-- **Phase 1 (MVP):** `execute()` + `RetryPolicy` in `_http.py`; route the data-plane chat path (`post_chat_completion`), `documents.convert`, and `voice` through it; default ON; injected `sleep`; tests. Delivers the backend's need with zero consumer code.
+- **Phase 1 (MVP):** `execute()` + `RetryPolicy` in `_http.py`; route the data-plane chat path (`post_chat_completion`), `documents.convert`, and `voice` through it; default ON; injected `sleep`; tests. Delivers the driving consumer's need with zero consumer code.
 - **Phase 2:** proactive pacing.
 - **Phase 3:** converge the control-plane timeout wrapper (§10) and add per-call `retry=` override.
-- **Backend migration:** **delete** avor-backend's `chat_completions` retry wrapper and `tests/test_saia_retry.py` — with default-on it is dead weight; handling now has a single owner in the library.
+- **Consumer migration:** downstream consumers delete their own 429 retry wrappers and the tests for them — with default-on they are dead weight; handling now has a single owner in the library.
 
-## 12. Reference implementation (avor-backend v0.8.11 — proven, 2026-06-02)
+## 12. Reference implementation (downstream stop-gap — proven, 2026-06-02)
 
-The stop-gap added in the consumer (`arcana/client.py`) when ingestion tripped 30/min. Deliberately minimal; the validated core is the seed, what it *omits* is exactly the library-level work above.
+The stop-gap a downstream consumer added when its ingestion tripped 30/min. Deliberately minimal; the validated core is the seed, what it *omits* is exactly the library-level work above.
 
 ```python
 DEFAULT_RATELIMIT_MAX_RETRIES = 5
@@ -209,7 +209,7 @@ def chat_completions(*, max_retries=DEFAULT_RATELIMIT_MAX_RETRIES,
                      _client=None, _sleep=time.sleep, **kwargs):
     """SAIAClient.chat.completions(**kwargs) with bounded 429 retry."""
     from saia_python import RateLimitError
-    client = _client if _client is not None else get_saia_client()
+    client = _client if _client is not None else SAIAClient()
     attempt = 0
     while True:
         try:
@@ -224,7 +224,7 @@ def chat_completions(*, max_retries=DEFAULT_RATELIMIT_MAX_RETRIES,
             _sleep(wait)
 ```
 
-**Carries over:** drive the wait from `exc.rate_limits.reset_seconds` (+1 s buffer), `31 s` fallback when absent, retry **only** `RateLimitError`, injected `_sleep`/`_client` as the test seam, one shared chokepoint (confirms §2/§4). Validated by 6 offline tests (`tests/test_saia_retry.py`).
+**Carries over:** drive the wait from `exc.rate_limits.reset_seconds` (+1 s buffer), `31 s` fallback when absent, retry **only** `RateLimitError`, injected `_sleep`/`_client` as the test seam, one shared chokepoint (confirms §2/§4). Validated by 6 offline tests in that consumer.
 **Deliberately omitted → why it belongs in the library:** no `max_waiting_time` / long-window fail-fast (it sleeps `reset_seconds` unconditionally — §5); no jitter / thread-safety (needed under ADR-0004 — §6/§8); no pacing (§8); wraps `chat.completions` only, not the shared dispatch (§4/§11).
 
 ## 13. Acceptance criteria · test plan · risks
@@ -243,4 +243,4 @@ On acceptance, record as **ADR-0006 — "Transport-policy layer for rate-limit h
 
 - Touch points: new seam + `RetryPolicy` (with `max_waiting_time`, default 60, settable per client and per call) in `saia_python/_http.py`; store `self._retry` on `SAIAClient` and forward it to services (mirror the v0.5.0 `timeout` threading); route `post_chat_completion`, `documents`, `voice` through `execute()`; declare `idempotent=` at each call site. `RateLimitError` already carries `reset_seconds` — no change there.
 - Python ≥ 3.10, `from __future__ import annotations`, Google-style docstrings.
-- Gate (any Python ≥3.10 with dev deps; e.g. `/Users/friedrichschwarz/mambaforge/bin/python`): `pytest -q`, `ruff check`, `ruff format --check`, `mypy`.
+- Gate (any Python ≥3.10 with dev deps): `pytest -q`, `ruff check`, `ruff format --check`, `mypy`.
