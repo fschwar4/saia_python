@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from saia_python.models import ModelsService
+from saia_python.models import ModelsService, probe_model_id
 
 _ENVELOPE = {
     "object": "list",
@@ -63,3 +63,28 @@ def test_configured_timeout_is_forwarded():
     svc = ModelsService(session, "https://example.com/v1", timeout=(3.0, 9.0))
     svc.list_raw()
     assert session.get.call_args.kwargs["timeout"] == (3.0, 9.0)
+
+
+class TestProbeModelId:
+    """probe_model_id picks the model get_rate_limits() names in its probe."""
+
+    def test_prefers_a_ready_text_model(self):
+        models = [
+            {"id": "img", "status": "ready", "output": ["image"]},
+            {"id": "down", "status": "offline", "output": ["text"]},
+            {"id": "chat", "status": "ready", "output": ["text", "thought"]},
+        ]
+        assert probe_model_id(models) == "chat"
+
+    def test_listing_without_metadata_takes_the_first_id(self):
+        assert probe_model_id([{"id": "a"}, {"id": "b"}]) == "a"
+
+    def test_falls_back_to_the_first_id_when_none_fits(self):
+        models = [{"id": "img", "output": ["image"]}, {"id": "down", "status": "x"}]
+        assert probe_model_id(models) == "img"
+
+    def test_skips_entries_without_an_id(self):
+        assert probe_model_id(["junk", {"object": "model"}, {"id": "m"}]) == "m"
+
+    def test_empty_listing(self):
+        assert probe_model_id([]) is None

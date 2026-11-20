@@ -19,7 +19,9 @@ from saia_python._http import (
 )
 from saia_python._streaming import SSEStream
 from saia_python.exceptions import RateLimitError
-from saia_python.rate_limits import RateLimitInfo
+from saia_python.rate_limits import RateLimitInfo, parse_rate_limits
+
+from ._rate_limit_headers import CURRENT_429, CURRENT_OK
 
 
 def _resp(status_code, headers=None, *, ok=None, json_body=None):
@@ -112,6 +114,38 @@ class TestPlan:
         assert _plan(RateLimitInfo(), p, 0) == 31
         assert _plan(RateLimitInfo(), p, 1) == 31
         assert _plan(RateLimitInfo(), p, 2) is None
+
+
+class TestPlanCurrentScheme:
+    """The headers SAIA sends since 2026-11: Retry-After plus a reset per window."""
+
+    def test_recorded_429_waits_retry_after(self):
+        # Retry-After (9) beats the window's reset (19): on a sliding window
+        # the reset is when the window is fully clear, not when the next
+        # request is admitted.
+        assert _plan(parse_rate_limits(CURRENT_429), RetryPolicy(), 0) == 9.0
+
+    def test_retry_after_beyond_cap_gives_up(self):
+        p = RetryPolicy(max_waiting_time=60)
+        assert _plan(RateLimitInfo(retry_after=120), p, 0) is None
+
+    def test_retry_after_respects_max_retries(self):
+        p = RetryPolicy(max_retries=2)
+        assert _plan(RateLimitInfo(retry_after=3), p, 1) == 3.0
+        assert _plan(RateLimitInfo(retry_after=3), p, 2) is None
+
+    def test_retry_after_is_trusted_for_a_long_window(self):
+        # The server knows when a request fits again, even into the hour.
+        info = RateLimitInfo(retry_after=9, remaining_hour=0, reset_hour=6269)
+        assert _plan(info, RetryPolicy(), 0) == 9.0
+
+    def test_without_retry_after_waits_for_the_exhausted_window(self):
+        info = RateLimitInfo(remaining_10s=0, reset_10s=19, remaining_hour=387)
+        assert _plan(info, RetryPolicy(), 0) == 20.0  # reset + 1 s
+
+    def test_without_retry_after_an_exhausted_hour_gives_up(self):
+        info = RateLimitInfo(remaining_hour=0, reset_hour=6269)
+        assert _plan(info, RetryPolicy(max_waiting_time=60), 0) is None
 
 
 class TestExecute:
@@ -214,6 +248,15 @@ class TestExecute:
         assert len(sleep.waits) == 1
         assert 6.0 <= sleep.waits[0] <= 8.0  # reset+1 plus [0,2] jitter
 
+    def test_recorded_429_waits_retry_after_then_succeeds(self):
+        sess = _session([_resp(429, CURRENT_429), _resp(200, CURRENT_OK)])
+        sleep = _Recorder()
+        resp = execute(
+            sess, "post", "u", policy=self.POLICY, idempotent=True, sleep=sleep
+        )
+        assert resp.status_code == 200
+        assert sleep.waits == [9.0]
+
 
 class TestPostChatCompletionRetry:
     def test_non_streaming_retries_then_returns_dict(self):
@@ -239,6 +282,25 @@ class TestPostChatCompletionRetry:
         assert result["_rate_limits"]["remaining_minute"] == 29
         assert sess.post.call_count == 2
         assert sleep.waits == [2.0]
+
+    def test_recorded_429_then_200_attaches_current_rate_limits(self):
+        sess = _session(
+            [
+                _resp(429, CURRENT_429),
+                _resp(200, CURRENT_OK, json_body={"ok": 1}),
+            ]
+        )
+        sleep = _Recorder()
+        result = post_chat_completion(
+            sess,
+            "u",
+            {"model": "m"},
+            policy=RetryPolicy(jitter=(0.0, 0.0)),
+            sleep=sleep,
+        )
+        assert sleep.waits == [9.0]
+        assert result["_rate_limits"]["remaining_10s"] == 9
+        assert result["_rate_limits"]["reset_hour"] == 6328
 
     def test_streaming_retries_opening_429_then_returns_stream(self):
         r429 = _resp(429, {"ratelimit-reset": "1"})

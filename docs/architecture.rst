@@ -47,8 +47,8 @@ The package follows a four-layer architecture:
   ``raise_for_status()`` implementation used by all service modules.
 - ``_streaming.py`` — SSE (Server-Sent Events) line parser, shared by
   ``ChatService`` and ``ArcanaService``.
-- ``rate_limits.py`` — parses ``x-ratelimit-*`` response headers into a
-  ``RateLimitInfo`` dataclass.
+- ``rate_limits.py`` — parses the rate-limit response headers (both schemes
+  SAIA has used, plus ``Retry-After``) into a ``RateLimitInfo`` dataclass.
 
 **Service classes** — each module encapsulates one SAIA API surface:
 

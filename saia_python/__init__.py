@@ -315,10 +315,17 @@ def arcana_chat(
 
 
 def get_rate_limits(
-    *, api_key: str | None = None, base_url: str | None = None
+    *,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    model: str | None = None,
 ) -> RateLimitInfo:
-    """Fetch current rate-limit status (functional API)."""
-    return _make_client(api_key, base_url).get_rate_limits()
+    """Fetch current rate-limit status (functional API).
+
+    See :meth:`SAIAClient.get_rate_limits`: one probe request, which names
+    ``model`` or a served text model looked up from ``GET /models``.
+    """
+    return _make_client(api_key, base_url).get_rate_limits(model=model)
 
 
 # --- Documents ---

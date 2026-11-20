@@ -92,3 +92,14 @@ becomes active (opt-out); the metadata decision itself stands. Extends
 `wait=False` worker and shared state is thread-safe. Folds in the v0.5.0
 control-plane timeout wrapper as the control-plane instance of the same seam. The
 full design and phased rollout live in `docs/proposals/rate-limit-handling.md`.
+
+**Update (2026-11-19): a new header scheme.** SAIA's gateway now sends a limit,
+remaining count and reset per window
+(`x-ratelimit-{limit,remaining,reset}-requests-{10s,hour,day}`) and `Retry-After`
+on a 429. The windows appear to slide: a window's reset is when it is fully
+clear, up to twice the window length away, while `Retry-After` says when the
+next request is admitted. The planner therefore waits for `Retry-After` first,
+then for the latest reset among the exhausted windows, and only then falls back
+to the earlier scheme's single `ratelimit-reset` with its long-window fail-fast.
+Both schemes are parsed. The decision itself stands: one seam, on by default,
+every wait bounded by `max_waiting_time`.

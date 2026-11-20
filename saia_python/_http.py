@@ -9,6 +9,7 @@ rather than being copied across :mod:`saia_python.chat`,
 from __future__ import annotations
 
 import logging
+import math
 import random
 import time
 from collections.abc import Callable
@@ -43,11 +44,12 @@ class RetryPolicy:
         on_rate_limit: Master switch. When ``False`` a 429 is never retried —
             it propagates as :class:`~saia_python.RateLimitError`, i.e. today's
             behavior.
-        max_retries: Maximum reset-driven retries (the minute window).
+        max_retries: Maximum retries that follow a server hint
+            (``Retry-After`` or a window's reset).
         max_waiting_time: The longest a single wait may block, in seconds
-            (default 60). A reset further out than this fails fast (raises)
+            (default 60). A hint further out than this fails fast (raises)
             rather than blocking; settable per client.
-        fallback_wait: Seconds to wait when the server sends no reset hint.
+        fallback_wait: Seconds to wait when the server sends no usable hint.
         fallback_max_retries: How many times the blind fallback is tried.
         jitter: ``(low, high)`` seconds added to each wait to avoid a
             thundering herd across concurrent workers; ``(0, 0)`` disables it.
@@ -94,24 +96,58 @@ def _jitter(policy: RetryPolicy) -> float:
     return random.uniform(low, high) if high > low else low
 
 
+#: Windows longer than a minute. The earlier header scheme timed only the
+#: shortest window, so when one of these ran out its reset was unknowable.
+_LONG_WINDOWS = frozenset({"hour", "day", "month"})
+
+
+def _server_wait(info: RateLimitInfo) -> float | None:
+    """How long the 429's headers say to wait, in seconds.
+
+    In order of trust:
+
+    1. ``Retry-After``: the server's own answer for whichever window is
+       binding.
+    2. The resets of the exhausted windows (current scheme). Waiting for the
+       latest one is safe; on a sliding window it overstates the wait, because
+       a window's reset is when it is fully clear.
+    3. The earlier scheme's single reset, which times only the shortest window.
+       When a longer window ran out instead, the wait cannot be timed:
+       ``math.inf``, so the caller gives up.
+
+    Returns ``None`` when the headers hold no usable hint.
+    """
+    if info.retry_after is not None and info.retry_after >= 0:
+        return float(info.retry_after)
+    exhausted = info.exhausted_windows()
+    if exhausted:
+        resets = [getattr(info, f"reset_{w}") for w in exhausted]
+        known = [r for r in resets if isinstance(r, int) and r > 0]
+        if len(known) == len(resets):
+            return float(max(known)) + 1.0
+        if _LONG_WINDOWS.intersection(exhausted):
+            return math.inf
+    reset = info.reset_seconds
+    if isinstance(reset, int) and reset > 0:
+        return float(reset) + 1.0
+    return None
+
+
 def _plan(info: RateLimitInfo, policy: RetryPolicy, attempt: int) -> float | None:
     """Seconds to wait before the next attempt, or ``None`` to give up (→ raise).
 
-    Honest about the single ``reset_seconds`` spanning four windows: we wait out
-    the window we can time (the minute), but fail fast on a longer window whose
-    reset is unknowable — we will not block for ~an hour inside a call.
+    Waits as long as the headers say (:func:`_server_wait`) but gives up when
+    that is longer than ``policy.max_waiting_time`` or the retries are spent —
+    we will not block for ~an hour inside a call. Without any hint it falls
+    back to a bounded blind wait.
     """
-    # A longer window is exhausted → its reset is not the (minute) reset_seconds.
-    for window in ("hour", "day", "month"):
-        if getattr(info, f"remaining_{window}") == 0:
-            return None
-    reset = info.reset_seconds
-    if isinstance(reset, (int, float)) and reset > 0:
-        if reset > policy.max_waiting_time:
-            return None
-        return None if attempt >= policy.max_retries else float(reset) + 1.0
-    # No usable reset hint → conservative, bounded blind fallback.
-    return None if attempt >= policy.fallback_max_retries else policy.fallback_wait
+    wait = _server_wait(info)
+    if wait is None:
+        # No usable hint → conservative, bounded blind fallback.
+        return None if attempt >= policy.fallback_max_retries else policy.fallback_wait
+    if wait > policy.max_waiting_time or attempt >= policy.max_retries:
+        return None
+    return wait
 
 
 def execute(

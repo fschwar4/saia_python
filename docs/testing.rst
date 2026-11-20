@@ -173,6 +173,11 @@ Test Inventory
 ``test_rate_limits.py`` — Header Parsing and Formatting
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+SAIA has sent two header schemes. The tests of the current one use headers
+recorded from the live gateway (``tests/_rate_limit_headers.py``), and so do the
+normal-path tests of chat, streaming and the async transport, so a renamed
+header shows up as a failing test rather than as silently empty limits.
+
 .. list-table::
    :header-rows: 1
    :widths: 50 50
@@ -180,13 +185,22 @@ Test Inventory
    * - Test
      - Purpose
    * - ``test_full_headers``
-     - All 9 rate-limit headers map to correct dataclass fields
+     - The earlier scheme's 9 headers map to the right dataclass fields
+   * - ``test_current_scheme``
+     - The current scheme's limit, remaining count and reset per window
+   * - ``test_current_429_has_retry_after_and_names_the_exhausted_window``
+     - A recorded 429 yields ``retry_after`` and the exhausted window
+   * - ``TestRetryAfter``
+     - ``Retry-After`` as seconds or as an HTTP-date; garbage is ignored
    * - ``test_non_integer_values_ignored``
      - Non-numeric header values are silently skipped
-   * - ``test_full_output_alignment``
-     - ``/`` and ``(`` columns are aligned across all rows
-   * - ``test_remaining_none_shows_question_mark``
-     - ``None`` remaining displays ``?`` (caught a real ``TypeError``)
+   * - ``TestRateLimitInfoStr``
+     - The summary renders every window, its reset and ``Retry after``,
+       and tolerates ``None`` fields
+
+``tests/test_transport_policy.py`` covers the 429 retry planner for both
+schemes: ``Retry-After`` first, then the exhausted window's reset, then the
+earlier scheme's single reset.
 
 ``test_streaming.py`` — SSE Line Parsing
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -219,3 +233,28 @@ Test Inventory
      - Purpose
    * - ``test_429_includes_parsed_rate_limits``
      - ``RateLimitError`` includes parsed ``rate_limits`` attribute from headers
+   * - ``test_current_429_carries_retry_after_and_the_gateway_message``
+     - A recorded 429 keeps ``Retry-After`` and the gateway's own message
+   * - ``TestExtractDetail``
+     - The error message comes from ``detail``, ``error.message`` or
+       ``message``, else from the raw body
+
+Live Checks
+-----------
+
+A few checks run against the real service and are skipped unless their
+environment variable is set. These three need an API key and count against your
+rate limits:
+
+.. code-block:: bash
+
+   SAIA_RATE_LIMITS_LIVE=1 pytest tests/test_live_rate_limits.py
+   SAIA_RESPONSES_LIVE=1 pytest tests/test_live_responses_route.py
+   SAIA_STRUCTURED_LIVE=1 pytest tests/test_live_structured.py
+
+The tokenizer smoke test downloads a tokenizer from Hugging Face instead and
+needs the ``[tokenizer]`` extra:
+
+.. code-block:: bash
+
+   SAIA_TOKENIZER_LIVE=1 pytest tests/test_tokenizer.py

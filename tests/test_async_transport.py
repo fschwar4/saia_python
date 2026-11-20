@@ -113,7 +113,7 @@ def test_apost_non_stream_attaches_rate_limits_dict():
     )
     assert isinstance(result, dict)
     assert isinstance(result["_rate_limits"], dict)
-    assert result["_rate_limits"]["remaining_minute"] == 29
+    assert result["_rate_limits"]["remaining_10s"] == 9
 
 
 def test_apost_non_stream_429_disabled_raises_informative_rate_limit():

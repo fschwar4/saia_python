@@ -13,6 +13,8 @@ from __future__ import annotations
 import json as _json
 from typing import Any
 
+from ._rate_limit_headers import CURRENT_OK
+
 
 class FakeAsyncResponse:
     """Stand-in for an ``httpx.Response`` (streamed or fully read).
@@ -157,10 +159,12 @@ class RecordingSleep:
 
 
 def rl_headers(**overrides: Any) -> dict:
-    """Rate-limit headers with sane defaults (minute window, plenty remaining)."""
-    headers = {
-        "x-ratelimit-limit-minute": "30",
-        "x-ratelimit-remaining-minute": "29",
-    }
+    """Rate-limit headers as SAIA sends them today (plenty remaining).
+
+    The defaults are the current scheme, recorded live (see
+    ``_rate_limit_headers.CURRENT_OK``); overrides may add earlier-scheme
+    headers such as ``ratelimit-reset``.
+    """
+    headers = dict(CURRENT_OK)
     headers.update({k: str(v) for k, v in overrides.items()})
     return headers

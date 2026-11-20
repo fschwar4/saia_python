@@ -12,10 +12,9 @@ from saia_python._http import RetryPolicy
 from saia_python._streaming import SSEStream
 from saia_python.chat import ChatService
 
-_RL_HEADERS = {
-    "x-ratelimit-limit-minute": "30",
-    "x-ratelimit-remaining-minute": "29",
-}
+from ._rate_limit_headers import CURRENT_OK
+
+_RL_HEADERS = CURRENT_OK
 
 
 def _make_service() -> ChatService:
@@ -41,7 +40,7 @@ def test_completions_non_streaming_attaches_rate_limits_dict():
 
     assert isinstance(result, dict)
     assert isinstance(result["_rate_limits"], dict)
-    assert result["_rate_limits"]["remaining_minute"] == 29
+    assert result["_rate_limits"]["remaining_10s"] == 9
     # The whole response round-trips through json.dumps — the point of the dict form.
     json.dumps(result)
 
@@ -60,5 +59,5 @@ def test_completions_streaming_returns_sse_stream():
     result = svc.completions("m", [{"role": "user", "content": "hi"}], stream=True)
 
     assert isinstance(result, SSEStream)
-    assert result.rate_limits["remaining_minute"] == 29
+    assert result.rate_limits["remaining_10s"] == 9
     assert svc._session.post.call_args.kwargs.get("stream") is True

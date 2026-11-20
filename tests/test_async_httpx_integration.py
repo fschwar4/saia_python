@@ -23,8 +23,10 @@ from saia_python._http import RetryPolicy  # noqa: E402
 from saia_python.aio import AsyncArcanaService, AsyncSSEStream, aexecute  # noqa: E402
 from saia_python.exceptions import RateLimitError  # noqa: E402
 
+from ._rate_limit_headers import CURRENT_OK  # noqa: E402
+
 _SSE = b'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\ndata: [DONE]\n\n'
-_RL = {"x-ratelimit-limit-minute": "30", "x-ratelimit-remaining-minute": "29"}
+_RL = CURRENT_OK
 
 
 def _client(handler):

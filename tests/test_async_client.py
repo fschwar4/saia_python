@@ -39,14 +39,47 @@ def test_async_context_manager_closes_pool():
 
 def test_get_rate_limits_tolerates_probe_400():
     fake = FakeAsyncClient(responses=[FakeAsyncResponse(400, headers=rl_headers())])
-    info = asyncio.run(_client(fake).get_rate_limits())
-    assert info.remaining_minute == 29
+    info = asyncio.run(_client(fake).get_rate_limits(model="m"))
+    assert info.remaining_10s == 9
+    probe = fake.calls[0]
+    assert (probe["method"], probe["url"]) == ("post", "https://x/v1/chat/completions")
+    assert probe["json"] == {"model": "m"}  # only a model: nothing is generated
+    assert probe["timeout"] == 60.0
+
+
+def test_get_rate_limits_looks_up_the_probe_model_once():
+    models = FakeAsyncResponse(200, json_body={"data": [{"id": "m1"}, {"id": "m2"}]})
+    fake = FakeAsyncClient(
+        responses=[
+            models,
+            FakeAsyncResponse(400, headers=rl_headers()),
+            FakeAsyncResponse(400, headers=rl_headers()),
+        ]
+    )
+    client = _client(fake)
+
+    async def _run():
+        await client.get_rate_limits()
+        await client.get_rate_limits()
+
+    asyncio.run(_run())
+    assert [c["method"] for c in fake.calls] == ["get", "post", "post"]
+    assert fake.calls[2]["json"] == {"model": "m1"}
+
+
+def test_get_rate_limits_without_headers_picks_the_model_again():
+    models = FakeAsyncResponse(200, json_body={"data": [{"id": "gone"}]})
+    fake = FakeAsyncClient(responses=[models, FakeAsyncResponse(404, text="x")])
+    client = _client(fake)
+    info = asyncio.run(client.get_rate_limits())
+    assert info.limit_10s is None
+    assert client._probe_model is None
 
 
 def test_get_rate_limits_raises_on_401():
     fake = FakeAsyncClient(responses=[FakeAsyncResponse(401, text="bad key")])
     with pytest.raises(AuthenticationError):
-        asyncio.run(_client(fake).get_rate_limits())
+        asyncio.run(_client(fake).get_rate_limits(model="m"))
 
 
 def test_health_check_verbose_reports_both_legs():

@@ -12,6 +12,33 @@ if TYPE_CHECKING:
     import requests
 
 
+def probe_model_id(models: list) -> str | None:
+    """Pick a model id for a request that only needs *some* served model.
+
+    Used by ``get_rate_limits()``: SAIA sends rate-limit headers only for a
+    request that names a model it serves. Prefers a model whose ``status`` is
+    ``ready`` and whose ``output`` includes text (when the listing says so),
+    else the first id; ``None`` for an empty listing.
+
+    Args:
+        models: Model dicts as :meth:`ModelsService.list` returns them.
+    """
+    first = None
+    for entry in models:
+        if not isinstance(entry, dict):
+            continue
+        mid = entry.get("id") or entry.get("model") or entry.get("name")
+        if not isinstance(mid, str) or not mid:
+            continue
+        if first is None:
+            first = mid
+        output = entry.get("output")
+        text_out = not isinstance(output, list) or "text" in output
+        if entry.get("status", "ready") == "ready" and text_out:
+            return mid
+    return first
+
+
 class ModelsService:
     """Access the ``/models`` endpoint.
 

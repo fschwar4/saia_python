@@ -21,6 +21,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   files must not contain absolute home-directory paths or rule numbers copied
   from other repositories' agent instructions. Notebooks must use the generic
   `Python 3` kernel name.
+- **Rate-limit fields for SAIA's current header scheme.** `RateLimitInfo`, and
+  with it `_rate_limits` and `stream.rate_limits`, gains `limit_10s`,
+  `remaining_10s`, a reset per window (`reset_10s`, `reset_minute`,
+  `reset_hour`, `reset_day`, `reset_month`), `retry_after` and
+  `exhausted_windows()`. The earlier fields stay, so existing keys keep
+  working. `print(client.get_rate_limits())` shows each window's reset and the
+  `Retry-After`. `get_rate_limits()` takes an optional `model=`.
+- **Live rate-limit check**, opt-in:
+  `SAIA_RATE_LIMITS_LIVE=1 pytest tests/test_live_rate_limits.py` fails when
+  SAIA's rate-limit headers no longer parse. The unit tests of the normal path
+  (chat, streaming, the async transport) now use headers recorded from SAIA on
+  2026-11-19, so a renamed header fails a test there too.
 
 ### Changed
 
@@ -29,6 +41,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Rate-limit data is back, and the 429 retry waits as long as SAIA asks.**
+  SAIA's gateway now sends `x-ratelimit-{limit,remaining,reset}-requests-{10s,hour,day}`
+  and, on a 429, `Retry-After` (seen 2026-11-19). saia-python knew only the
+  earlier names (`x-ratelimit-{limit,remaining}-{minute,hour,day,month}` and
+  `ratelimit-reset`). So `_rate_limits`, `stream.rate_limits` and
+  `get_rate_limits()` came back empty, and every 429 got the blind fallback of
+  up to two 31-second waits. Both schemes are now parsed. The retry waits for
+  `Retry-After` first, then for the reset of the exhausted window, and still
+  fails fast when the wait would exceed `max_waiting_time`. Checked live: the
+  eleventh request of a burst now waits about 10 seconds and then goes through.
+- **`get_rate_limits()` works again.** Its probe, a bodiless
+  `GET /chat/completions`, now gets `405` and no rate-limit headers: SAIA sends
+  them only for requests that name a served model. The probe is now a
+  `POST /chat/completions` whose body holds only `model`, which SAIA rejects
+  with 400 before generating anything. It counts as one request. The model
+  defaults to a served text model from `GET /models`, looked up once per
+  client. A probe that comes back without headers now logs a warning instead
+  of returning empty limits silently.
+- **Error messages show the server's text instead of raw JSON.** SAIA's model
+  gateway now answers errors with an OpenAI-style `{"error": {"message": …}}`
+  body, and its API gateway answers auth errors with `{"message": …}`. The
+  exceptions now take their message from these fields, as they already did
+  from `{"detail": …}`. `response_body` still holds the raw body.
 - **The `[tokenizer]` extra now installs `jinja2`.** transformers pulls it only
   through its own `[chat-template]` extra. Without it, `chat_template_tokens`
   could not apply the model's chat template and fell back to a plain

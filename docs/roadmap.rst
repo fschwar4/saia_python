@@ -92,7 +92,7 @@ additional, opt-in option, just as structured output is: the plain
     (``create_partial``), and the parsed object together with the raw completion
     (``create_with_completion``).
   - What does asking again cost? Each retry is a full request against the
-    per-minute limit, and its ``usage`` adds up.
+    rate limits, and its ``usage`` adds up.
   - How much can a dependency rest on it? instructor is widely used and actively
     released (1.17.0 on 2026-09-09), but its development rests largely on one
     person, its creator Jason Liu: 71 of the last 100 commits in its
@@ -170,7 +170,7 @@ workloads need nothing more.
 
 **Status — deferred (no implementation planned)**:
   Only sustained, high-throughput batch jobs that constantly bounce off the
-  per-minute limit would benefit; ordinary use is well served by the shipped
+  shortest rate-limit window would benefit; ordinary use is well served by the shipped
   reactive retry. Parked until a workload actually needs it.
 
 **Constraint when revisited — the limit must be adaptable**:

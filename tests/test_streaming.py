@@ -8,6 +8,8 @@ import pytest
 from saia_python._streaming import SSEStream, iter_sse
 from saia_python.exceptions import AuthenticationError
 
+from ._rate_limit_headers import CURRENT_OK
+
 
 def _make_response(lines, status_code=200):
     resp = MagicMock()
@@ -79,15 +81,13 @@ class TestSSEStream:
                 "data: [DONE]",
             ]
         )
-        resp.headers = {
-            "x-ratelimit-limit-minute": "30",
-            "x-ratelimit-remaining-minute": "29",
-        }
+        resp.headers = CURRENT_OK
         stream = SSEStream(resp)
 
         # Rate limits available immediately, as a JSON-serializable dict.
-        assert stream.rate_limits["limit_minute"] == 30
-        assert stream.rate_limits["remaining_minute"] == 29
+        assert stream.rate_limits["limit_10s"] == 10
+        assert stream.rate_limits["remaining_10s"] == 9
+        assert stream.rate_limits["reset_day"] == 27928
 
         chunks = list(stream)
         assert len(chunks) == 1

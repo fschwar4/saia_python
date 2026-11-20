@@ -41,6 +41,7 @@ the two transports cannot drift.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any, cast
 
 from ._async_http import aexecute, apost_chat_completion
@@ -53,11 +54,14 @@ from ._payloads import (
 )
 from .auth import resolve_credentials
 from .exceptions import raise_for_status
+from .models import probe_model_id
 from .rate_limits import RateLimitInfo, parse_rate_limits
 from .structured import ModelT, parse_structured, response_format_for
 
 if TYPE_CHECKING:
     import httpx
+
+log = logging.getLogger(__name__)
 
 _ARCANA_PATH = "/arcanas/api/v1"
 
@@ -412,6 +416,8 @@ class AsyncSAIAClient:
         self._chat: AsyncChatService | None = None
         self._arcana: AsyncArcanaService | None = None
         self._models: AsyncModelsService | None = None
+        # The model get_rate_limits() probes with, once looked up.
+        self._probe_model: str | None = None
 
     @property
     def chat(self) -> AsyncChatService:
@@ -438,17 +444,43 @@ class AsyncSAIAClient:
             self._models = AsyncModelsService(self._client, self._base_url)
         return self._models
 
-    async def get_rate_limits(self) -> RateLimitInfo:
+    async def get_rate_limits(self, *, model: str | None = None) -> RateLimitInfo:
         """Fetch current rate-limit status via a lightweight probe.
 
-        A ``GET /chat/completions`` returns 400 (missing body) but carries the
-        rate-limit headers; a 401/403 is surfaced as
-        :class:`~saia_python.AuthenticationError`.
+        The async twin of :meth:`SAIAClient.get_rate_limits
+        <saia_python.SAIAClient.get_rate_limits>`: a ``POST /chat/completions``
+        whose body holds only ``model`` returns 400 but carries the rate-limit
+        headers, and counts as one request. ``model`` defaults to a served text
+        model from ``GET /models``, looked up once per client. A 401/403 is
+        surfaced as :class:`~saia_python.AuthenticationError`.
         """
-        resp = await self._client.get(f"{self._base_url}/chat/completions")
+        probe_model = model
+        if probe_model is None:
+            if self._probe_model is None:
+                self._probe_model = probe_model_id(await self.models.list())
+            probe_model = self._probe_model
+        if probe_model is None:
+            log.warning("get_rate_limits: GET /models listed no model to probe with")
+            return RateLimitInfo()
+        resp = await self._client.post(
+            f"{self._base_url}/chat/completions",
+            json={"model": probe_model},
+            timeout=_CONTROL_PLANE_TIMEOUT,
+        )
         if resp.status_code in (401, 403):
             raise_for_status(resp)
-        return parse_rate_limits(resp.headers)
+        info = parse_rate_limits(resp.headers)
+        if info == RateLimitInfo():
+            if model is None:
+                # The picked model may have been retired: pick again next time.
+                self._probe_model = None
+            log.warning(
+                "get_rate_limits: the probe (HTTP %s, model %r) carried no "
+                "rate-limit headers",
+                resp.status_code,
+                probe_model,
+            )
+        return info
 
     async def arcana_version(self) -> str:
         """Return the ARCANA API version string."""

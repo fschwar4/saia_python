@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import requests as _requests
 
 from ._http import DEFAULT_TIMEOUT, RetryPolicy, coerce_retry
@@ -10,10 +12,12 @@ from .auth import resolve_credentials
 from .chat import ChatService
 from .documents import DocumentService
 from .exceptions import raise_for_status
-from .models import ModelsService
+from .models import ModelsService, probe_model_id
 from .rate_limits import RateLimitInfo, parse_rate_limits
 from .tokenizer import TokenizerService
 from .voice import VoiceService
+
+log = logging.getLogger(__name__)
 
 
 class SAIAClient:
@@ -84,6 +88,8 @@ class SAIAClient:
         self._tokenizers: TokenizerService | None = None
         self._openai = None
         self._openai_async = None
+        # The model get_rate_limits() probes with, once looked up.
+        self._probe_model: str | None = None
 
     @property
     def chat(self) -> ChatService:
@@ -184,29 +190,59 @@ class SAIAClient:
             )
         return self._openai_async
 
-    def get_rate_limits(self) -> RateLimitInfo:
-        """Fetch current rate-limit status by making a lightweight API call.
+    def get_rate_limits(self, *, model: str | None = None) -> RateLimitInfo:
+        """Fetch the current rate-limit status with a lightweight probe.
 
-        Uses a GET to ``/chat/completions`` which returns 400 but includes
-        rate-limit headers.
+        SAIA sends rate-limit headers only for requests that name a model it
+        serves. The probe is therefore a ``POST /chat/completions`` whose body
+        holds nothing but ``model``. SAIA rejects it with HTTP 400 before
+        anything is generated, and the response still carries the headers.
+        The probe counts as one request against your limits.
+
+        Args:
+            model: The model the probe names. Defaults to a served text model
+                from ``GET /models``, looked up once per client.
 
         Returns:
-            Parsed :class:`RateLimitInfo`.
+            Parsed :class:`RateLimitInfo`. When the response carried no
+            rate-limit headers it is empty and a warning is logged.
 
         Raises:
             AuthenticationError: If the API key is invalid or expired
                 (401/403). Other non-2xx statuses (notably the expected
                 400) are tolerated since they still carry the headers.
+            APIError: If ``model`` is omitted and ``GET /models`` fails.
         """
-        resp = self._session.get(
-            f"{self._base_url}/chat/completions", timeout=self._timeout
+        probe_model = model
+        if probe_model is None:
+            if self._probe_model is None:
+                self._probe_model = probe_model_id(self.models.list())
+            probe_model = self._probe_model
+        if probe_model is None:
+            log.warning("get_rate_limits: GET /models listed no model to probe with")
+            return RateLimitInfo()
+        resp = self._session.post(
+            f"{self._base_url}/chat/completions",
+            json={"model": probe_model},
+            timeout=self._timeout,
         )
         if resp.status_code in (401, 403):
-            # The probe is *expected* to 400 (missing request body) but still
-            # carries rate-limit headers. A 401/403 means the key is bad, so
-            # surface it instead of silently returning an empty RateLimitInfo.
+            # The probe is *expected* to 400 (no messages) but still carries
+            # rate-limit headers. A 401/403 means the key is bad, so surface it
+            # instead of silently returning an empty RateLimitInfo.
             raise_for_status(resp)
-        return parse_rate_limits(resp.headers)
+        info = parse_rate_limits(resp.headers)
+        if info == RateLimitInfo():
+            if model is None:
+                # The picked model may have been retired: pick again next time.
+                self._probe_model = None
+            log.warning(
+                "get_rate_limits: the probe (HTTP %s, model %r) carried no "
+                "rate-limit headers",
+                resp.status_code,
+                probe_model,
+            )
+        return info
 
     def arcana_version(self) -> str:
         """Return the ARCANA API version string.

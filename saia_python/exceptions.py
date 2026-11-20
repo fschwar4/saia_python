@@ -105,16 +105,29 @@ class StructuredOutputError(SAIAError):
 def _extract_detail(resp: Any) -> str:
     """Try to extract a human-readable message from a JSON error body.
 
-    The SAIA API typically returns ``{"detail": "..."}`` on errors.
+    Understands the error bodies SAIA sends:
+
+    - ``{"detail": "..."}`` from its FastAPI services (e.g. ARCANA);
+    - ``{"error": {"message": "..."}}``, the OpenAI-style body of the model
+      gateway (seen since 2026-11-19, including on 429s);
+    - ``{"message": "..."}`` from the API gateway's own auth errors.
+
     Falls back to the raw response text. Works with any response exposing
     ``json()`` / ``text`` (``requests`` or ``httpx``).
     """
     try:
         body = resp.json()
-        if isinstance(body, dict) and "detail" in body:
-            return body["detail"]
     except (_json.JSONDecodeError, ValueError):
-        pass
+        return resp.text
+    if isinstance(body, dict):
+        if "detail" in body:
+            return body["detail"]
+        error = body.get("error")
+        if isinstance(error, dict):
+            error = error.get("message")
+        for message in (error, body.get("message")):
+            if isinstance(message, str) and message.strip():
+                return message
     return resp.text
 
 
