@@ -82,10 +82,6 @@ The test used a test arcana holding one scientific preprint. The same question (
 
 ARCANA therefore stays on `/chat/completions`, and the new services do not offer an `arcana_id` parameter.
 
-A side note on keys: API keys can be scoped per service.
-- One key in this test got `401 Unauthorized` from the ARCANA management API (`/arcanas/api/v1/...`: list, version, user info), yet ARCANA retrieval through chat worked with the same key.
-- A second key had full ARCANA access.
-
 The check designs follow.
 
 **ARCANA over `/responses` and `/messages`**
