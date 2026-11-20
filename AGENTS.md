@@ -2,16 +2,14 @@
 
 Shared, tool-neutral guidance for agents and developers working in this repo.
 Read directly by tools that support `AGENTS.md`, and by Claude Code via the
-`@AGENTS.md` import in `CLAUDE.md`. Keep it accurate; update when a convention
-changes.
+`@AGENTS.md` import in `CLAUDE.md`, which holds nothing else. Keep it accurate;
+update when a convention changes.
 
 > **This is a PUBLIC repository** (AGPL-3.0-only; published to PyPI + Zenodo).
 > This file is **committed and shared** — the single source of truth for project
 > instructions; it travels to every clone/teammate via git. Therefore: **no
-> secrets, no API keys, no private/downstream-internal details** here (see
-> "Public repository: no downstream details" below).
-> Machine-specific residue goes in `CLAUDE.local.md` (gitignored, imported by
-> `CLAUDE.md`; create your own per machine).
+> secrets, no API keys, no downstream details and nothing from private
+> communication** here (see "Public repository: no downstream details" below).
 
 ## What this is
 
@@ -89,11 +87,13 @@ create + publish the Release.
 
 Everything committed here stays public for good. That covers the GitHub history,
 every Zenodo snapshot and every PyPI release, and past releases cannot be edited.
-So nothing in this repo may describe a project that *uses* saia-python.
+So nothing in this repo may describe a project that *uses* saia-python, and
+nothing may come from private communication.
 
 **Where the rule applies:**
 - code, docstrings, comments, tests and fixtures;
-- ADRs, proposals and notebooks, including notebook metadata;
+- the README, the docs, ADRs, proposals and notebooks, including notebook
+  metadata;
 - the CHANGELOG, commit messages, release notes and PR texts.
 
 **What it rules out:**
@@ -105,6 +105,13 @@ So nothing in this repo may describe a project that *uses* saia-python.
 - absolute local paths (`/Users/…`, `/home/…`), user names, and environment or
   kernel names. Notebooks keep the generic `Python 3` kernel name.
 - anything copied from another repository's private instructions.
+- content from emails, chats, support requests or other private
+  correspondence, and descriptions of internal workflows: who was asked what, a
+  pending inquiry with the API provider, an awaited answer, or the state of the
+  maintainer's own accounts and keys. A fact about the API goes in only when it
+  can be checked against the live service or the provider's public
+  documentation, written as that check with its date (e.g. "seen 2026-11-19"),
+  never sourced to private correspondence.
 
 Describe consumers generically, e.g. "a downstream gateway", "a proxy" or "a
 document-ingestion pipeline". Give the technical reason for a change, not the
@@ -113,10 +120,14 @@ saia-python from a session in another repository.
 
 **The only exception** is a showcase project: it may be named (e.g. in a "Used
 by" section) once the maintainer has explicitly approved that specific mention
-beforehand. Without such approval the rule covers every project.
+beforehand; an agent needs that approval in the current conversation. Without
+such approval the rule covers every project.
 
 **Guards:**
+- Before handing over any commit, release note or PR text, check the staged
+  diff and the message against the list above.
 - `tests/test_public_repo_hygiene.py` checks the generic patterns in CI.
 - Maintainers also run a local pre-commit and commit-msg hook with a private
   denylist. The denylist is kept outside the repository and never committed.
-- Bypass the hook (`--no-verify`) only for an approved exception.
+- Bypass the hook (`--no-verify`), or suggest bypassing it, only for an
+  approved exception.
