@@ -16,6 +16,7 @@ Services
    :maxdepth: 2
 
    chat
+   completions
    voice
    arcana
    arcana_references

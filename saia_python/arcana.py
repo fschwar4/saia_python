@@ -17,7 +17,7 @@ from ._http import (
     coerce_retry,
     execute,
     new_session_like,
-    post_chat_completion,
+    post_generation,
     resolve_retry,
 )
 from ._streaming import SSEStream
@@ -1352,7 +1352,7 @@ class ArcanaService:
             "inference-service": "saia-openai-gateway",
         }
 
-        return post_chat_completion(
+        return post_generation(
             self._session,
             f"{self._base_url}/chat/completions",
             body,

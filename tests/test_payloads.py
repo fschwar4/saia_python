@@ -12,6 +12,7 @@ from saia_python import (
     apply_arcana_fields,
     arcana_chat_headers,
     build_chat_body,
+    build_completion_body,
 )
 
 
@@ -29,6 +30,33 @@ def test_build_chat_body_includes_set_knobs_and_merges_kwargs():
     assert body["max_tokens"] == 64
     assert body["stream"] is True
     assert body["stop"] == ["x"]
+
+
+def test_build_completion_body_minimal_omits_none_knobs():
+    assert build_completion_body("m", "Once upon a time") == {
+        "model": "m",
+        "prompt": "Once upon a time",
+    }
+
+
+def test_build_completion_body_includes_set_knobs_and_merges_kwargs():
+    body = build_completion_body(
+        "m", "x", max_tokens=8, temperature=0, top_p=0.5, stop=["\n"], echo=True
+    )
+    assert body == {
+        "model": "m",
+        "prompt": "x",
+        "max_tokens": 8,
+        "temperature": 0,  # 0 is a value, not "unset"
+        "top_p": 0.5,
+        "stop": ["\n"],
+        "echo": True,
+    }
+
+
+def test_build_completion_body_passes_a_prompt_list_through():
+    body = build_completion_body("m", ["a", "b"])
+    assert body["prompt"] == ["a", "b"]
 
 
 def test_apply_arcana_fields_returns_new_dict_and_leaves_input_unmutated():

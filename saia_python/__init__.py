@@ -23,6 +23,7 @@ from ._payloads import (
     apply_arcana_fields,
     arcana_chat_headers,
     build_chat_body,
+    build_completion_body,
 )
 from ._streaming import SSEStream
 from .arcana_references import (
@@ -53,7 +54,7 @@ from .exceptions import (
 )
 from .openai_compat import create_openai_client
 from .rate_limits import RateLimitInfo, format_rate_limit_error, parse_rate_limits
-from .responses import text_of
+from .responses import aiter_text, iter_text, text_of, usage_of
 from .structured import parse_structured, response_format_for
 from .tokenizer import (
     DEFAULT_TOKENIZER_DIR,
@@ -112,11 +113,15 @@ __all__ = [
     "format_rate_limit_error",
     # Request builders (pure — shared by sync, async, and external gateways)
     "build_chat_body",
+    "build_completion_body",
     "apply_arcana_fields",
     "arcana_chat_headers",
     "INFERENCE_SERVICE",
     # Response helpers
     "text_of",
+    "iter_text",
+    "aiter_text",
+    "usage_of",
     "SSEStream",
     # Structured output (Pydantic v2 models)
     "response_format_for",
@@ -170,7 +175,13 @@ __all__ = [
 # ``from saia_python import AsyncSAIAClient`` still works when httpx is present.
 # Kept OUT of ``__all__`` so ``from saia_python import *`` stays httpx-free.
 _ASYNC_EXPORTS = frozenset(
-    {"AsyncSAIAClient", "AsyncChatService", "AsyncArcanaService", "AsyncModelsService"}
+    {
+        "AsyncSAIAClient",
+        "AsyncChatService",
+        "AsyncCompletionsService",
+        "AsyncArcanaService",
+        "AsyncModelsService",
+    }
 )
 
 

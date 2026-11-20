@@ -10,6 +10,7 @@ from ._http import DEFAULT_TIMEOUT, RetryPolicy, coerce_retry
 from .arcana import ArcanaService
 from .auth import resolve_credentials
 from .chat import ChatService
+from .completions import CompletionsService
 from .documents import DocumentService
 from .exceptions import raise_for_status
 from .models import ModelsService, probe_model_id
@@ -23,9 +24,10 @@ log = logging.getLogger(__name__)
 class SAIAClient:
     """High-level client for the GWDG SAIA platform.
 
-    Provides access to Chat, Voice AI, ARCANA, Documents, and model
-    listing through a shared, authenticated HTTP session. An OpenAI-
-    compatible client is available via the ``.openai`` property.
+    Provides access to Chat, raw-text Completions, Voice AI, ARCANA,
+    Documents, and model listing through a shared, authenticated HTTP
+    session. An OpenAI-compatible client is available via the ``.openai``
+    property.
 
     Args:
         api_key: Your SAIA API key. If omitted, the key is resolved
@@ -43,8 +45,8 @@ class SAIAClient:
             mid-(re)index). A single ``float`` applies to both phases; pass
             ``None`` to disable. Defaults to ``(10, 60)``.
         retry: Rate-limit handling policy (:class:`~saia_python.RetryPolicy`),
-            forwarded to the data-plane services (chat, ARCANA chat, documents,
-            voice). **On by default** — a 429 on an idempotent call is waited
+            forwarded to the data-plane services (chat, completions, ARCANA
+            chat, documents, voice). **On by default** — a 429 on an idempotent call is waited
             out and retried within bounds. Pass ``False`` to disable, or a
             ``RetryPolicy`` to tune it (e.g. ``max_waiting_time``).
 
@@ -81,6 +83,7 @@ class SAIAClient:
         )
 
         self._chat: ChatService | None = None
+        self._completions: CompletionsService | None = None
         self._voice: VoiceService | None = None
         self._models: ModelsService | None = None
         self._arcana: ArcanaService | None = None
@@ -97,6 +100,15 @@ class SAIAClient:
         if self._chat is None:
             self._chat = ChatService(self._session, self._base_url, retry=self._retry)
         return self._chat
+
+    @property
+    def completions(self) -> CompletionsService:
+        """Raw-text completions service (``/completions``)."""
+        if self._completions is None:
+            self._completions = CompletionsService(
+                self._session, self._base_url, retry=self._retry
+            )
+        return self._completions
 
     @property
     def voice(self) -> VoiceService:

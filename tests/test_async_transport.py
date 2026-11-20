@@ -1,4 +1,4 @@
-"""Tests for the async transport (``aexecute`` / ``apost_chat_completion``).
+"""Tests for the async transport (``aexecute`` / ``apost_generation``).
 
 The async twin of ``test_transport_policy.py`` + the transport half of
 ``test_chat.py``: the retry loop, the 429/give-up contract, and the informative
@@ -12,7 +12,7 @@ import asyncio
 
 import pytest
 
-from saia_python._async_http import aexecute, apost_chat_completion
+from saia_python._async_http import aexecute, apost_chat_completion, apost_generation
 from saia_python._http import RetryPolicy
 from saia_python.aio import AsyncSSEStream
 from saia_python.exceptions import APIError, RateLimitError
@@ -98,6 +98,14 @@ def test_aexecute_mutation_retried_when_opted_in():
     assert sleep.waits == [3.0]
 
 
+def test_the_old_name_is_an_alias_and_both_stay_public():
+    import saia_python.aio as aio
+
+    assert apost_chat_completion is apost_generation
+    assert aio.apost_chat_completion is aio.apost_generation is apost_generation
+    assert {"apost_generation", "apost_chat_completion"} <= set(aio.__all__)
+
+
 def test_apost_non_stream_attaches_rate_limits_dict():
     client = FakeAsyncClient(
         responses=[
@@ -108,9 +116,7 @@ def test_apost_non_stream_attaches_rate_limits_dict():
             )
         ]
     )
-    result = asyncio.run(
-        apost_chat_completion(client, "u", {"model": "m", "messages": []})
-    )
+    result = asyncio.run(apost_generation(client, "u", {"model": "m", "messages": []}))
     assert isinstance(result, dict)
     assert isinstance(result["_rate_limits"], dict)
     assert result["_rate_limits"]["remaining_10s"] == 9
@@ -130,7 +136,7 @@ def test_apost_non_stream_429_disabled_raises_informative_rate_limit():
     )
     with pytest.raises(RateLimitError) as exc:
         asyncio.run(
-            apost_chat_completion(
+            apost_generation(
                 client, "u", {"model": "m", "messages": []}, policy=RetryPolicy(False)
             )
         )
@@ -145,7 +151,7 @@ def test_apost_non_stream_429_disabled_raises_informative_rate_limit():
 def test_apost_non_stream_500_raises_apierror_with_body():
     client = FakeAsyncClient(responses=[FakeAsyncResponse(500, text="upstream boom")])
     with pytest.raises(APIError) as exc:
-        asyncio.run(apost_chat_completion(client, "u", {"model": "m", "messages": []}))
+        asyncio.run(apost_generation(client, "u", {"model": "m", "messages": []}))
     assert exc.value.status_code == 500
     assert exc.value.response_body == "upstream boom"
 
@@ -160,7 +166,7 @@ def test_apost_stream_returns_async_sse_stream():
     )
 
     async def _run():
-        stream = await apost_chat_completion(
+        stream = await apost_generation(
             client, "u", {"model": "m", "messages": []}, stream=True
         )
         assert isinstance(stream, AsyncSSEStream)

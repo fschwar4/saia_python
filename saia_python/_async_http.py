@@ -1,7 +1,7 @@
 """Async HTTP plumbing — the ``httpx.AsyncClient`` twin of :mod:`saia_python._http`.
 
 Mirrors :func:`~saia_python._http.execute` and
-:func:`~saia_python._http.post_chat_completion` over ``httpx.AsyncClient``,
+:func:`~saia_python._http.post_generation` over ``httpx.AsyncClient``,
 **reusing the pure retry brains** (:class:`~saia_python._http.RetryPolicy`,
 ``_plan``, ``_jitter``) and :func:`~saia_python.rate_limits.parse_rate_limits`
 unchanged — so the sync and async paths can never drift on rate-limit handling.
@@ -77,7 +77,7 @@ async def aexecute(
         await sleep(wait)
 
 
-async def apost_chat_completion(
+async def apost_generation(
     client: httpx.AsyncClient,
     url: str,
     body: dict,
@@ -87,10 +87,11 @@ async def apost_chat_completion(
     policy: RetryPolicy | None = None,
     sleep: AsyncSleep = asyncio.sleep,
 ) -> dict | Any:
-    """POST a chat-completion request and normalise the response (async).
+    """POST a generation request and normalise the response (async).
 
-    The async twin of :func:`saia_python._http.post_chat_completion`. For
-    ``stream=False`` it returns the response dict with an extra
+    The async twin of :func:`saia_python._http.post_generation`, shared by
+    every route that generates text (``/chat/completions``, ``/completions``).
+    For ``stream=False`` it returns the response dict with an extra
     ``"_rate_limits"`` key; for ``stream=True`` it returns a connected
     :class:`~saia_python.aio.AsyncSSEStream` (imported lazily to avoid a cycle),
     with the initial-429 retry already applied *before* the stream is exposed —
@@ -125,3 +126,7 @@ async def apost_chat_completion(
     result = resp.json()
     result["_rate_limits"] = parse_rate_limits(resp.headers).to_dict()
     return result
+
+
+#: The earlier, chat-specific name of :func:`apost_generation`, kept as an alias.
+apost_chat_completion = apost_generation

@@ -23,8 +23,9 @@ calls and ``async for`` over a stream::
         async for chunk in stream:
             ...
 
-**Scope.** The async layer covers the **data plane** — chat completions and
-ARCANA RAG chat (streaming + non-streaming), the rate-limit
+**Scope.** The async layer covers the **data plane** — chat completions,
+raw-text completions and ARCANA RAG chat (streaming + non-streaming), the
+rate-limit
 :class:`~saia_python.RetryPolicy` as a per-call ``retry`` keyword, rate-limit
 surfacing, and an informative 429 error when retry is off — plus the
 lightweight read-only control-plane calls (``models``, arcana
@@ -44,13 +45,14 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
-from ._async_http import aexecute, apost_chat_completion
+from ._async_http import aexecute, apost_chat_completion, apost_generation
 from ._async_streaming import AsyncSSEStream
 from ._http import RetryPolicy, coerce_retry, resolve_retry
 from ._payloads import (
     apply_arcana_fields,
     arcana_chat_headers,
     build_chat_body,
+    build_completion_body,
 )
 from .auth import resolve_credentials
 from .exceptions import raise_for_status
@@ -76,10 +78,12 @@ _CONTROL_PLANE_TIMEOUT = 60.0
 __all__ = [
     "AsyncSAIAClient",
     "AsyncChatService",
+    "AsyncCompletionsService",
     "AsyncArcanaService",
     "AsyncModelsService",
     "AsyncSSEStream",
     "aexecute",
+    "apost_generation",
     "apost_chat_completion",
 ]
 
@@ -137,7 +141,7 @@ class AsyncChatService:
             max_tokens=max_tokens,
             **kwargs,
         )
-        return await apost_chat_completion(
+        return await apost_generation(
             self._client,
             f"{self._base_url}/chat/completions",
             body,
@@ -179,6 +183,60 @@ class AsyncChatService:
 
     def __repr__(self) -> str:
         return f"AsyncChatService(base_url={self._base_url!r})"
+
+
+class AsyncCompletionsService:
+    """Async access to ``/completions`` (the twin of :class:`~saia_python.completions.CompletionsService`)."""
+
+    def __init__(
+        self,
+        client: httpx.AsyncClient,
+        base_url: str,
+        *,
+        retry: RetryPolicy | bool | None = None,
+    ):
+        self._client = client
+        self._base_url = base_url
+        self._retry = coerce_retry(retry)
+
+    async def create(
+        self,
+        model: str,
+        prompt: str | list[str] | list[int] | list[list[int]],
+        *,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        stream: bool = False,
+        retry: RetryPolicy | bool | None = None,
+        **kwargs: Any,
+    ) -> dict | AsyncSSEStream:
+        """Complete a prompt as raw text. See :meth:`CompletionsService.create
+        <saia_python.completions.CompletionsService.create>`.
+
+        With ``stream=False`` returns the response dict (plus a ``_rate_limits``
+        key); with ``stream=True`` returns an :class:`AsyncSSEStream` to iterate,
+        e.g. with :func:`~saia_python.aiter_text`. Set ``max_tokens``: SAIA
+        stops after 16 tokens without it.
+        """
+        body = build_completion_body(
+            model,
+            prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            **kwargs,
+        )
+        return await apost_generation(
+            self._client,
+            f"{self._base_url}/completions",
+            body,
+            stream=stream,
+            policy=resolve_retry(self._retry, retry),
+        )
+
+    def __repr__(self) -> str:
+        return f"AsyncCompletionsService(base_url={self._base_url!r})"
 
 
 class AsyncArcanaService:
@@ -253,7 +311,7 @@ class AsyncArcanaService:
             arcana_id,
         )
         headers = arcana_chat_headers(api_key or self._api_key, extra=extra_headers)
-        return await apost_chat_completion(
+        return await apost_generation(
             self._client,
             f"{self._base_url}/chat/completions",
             body,
@@ -414,6 +472,7 @@ class AsyncSAIAClient:
             },
         )
         self._chat: AsyncChatService | None = None
+        self._completions: AsyncCompletionsService | None = None
         self._arcana: AsyncArcanaService | None = None
         self._models: AsyncModelsService | None = None
         # The model get_rate_limits() probes with, once looked up.
@@ -427,6 +486,15 @@ class AsyncSAIAClient:
                 self._client, self._base_url, retry=self._retry
             )
         return self._chat
+
+    @property
+    def completions(self) -> AsyncCompletionsService:
+        """Async raw-text completions service (``/completions``)."""
+        if self._completions is None:
+            self._completions = AsyncCompletionsService(
+                self._client, self._base_url, retry=self._retry
+            )
+        return self._completions
 
     @property
     def arcana(self) -> AsyncArcanaService:

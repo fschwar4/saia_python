@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Native `/completions` service.** `client.completions.create(model, prompt, ...)`
+  and its async twin `await aclient.completions.create(...)` send a raw-text
+  completion through the same transport as chat: the 429 retry policy,
+  `_rate_limits` on the dict (`stream.rate_limits` on a stream), the typed
+  errors and `stream=True`. The model continues `prompt` verbatim, without a
+  chat template. Set `max_tokens`: without it SAIA stops after 16 tokens
+  (seen 2026-11-20). `build_completion_body()` builds the request body for
+  callers that send it themselves. The unit tests replay a response and a
+  stream recorded from SAIA on 2026-11-20.
+- **One set of helpers for native results and OpenAI SDK objects.**
+  `text_of()` now also reads `text_completion` responses and takes an SDK
+  object directly, without `.model_dump()`. The new `iter_text()` and
+  `aiter_text()` yield the text of a chat or completion stream, ours or the
+  SDK's. They keep to the first choice, skip the usage chunk, close the
+  stream when done, and raise `APIError` when a chunk reports an error
+  instead of ending as if the answer were complete. The new `usage_of()`
+  returns `input_tokens`, `output_tokens` and `total_tokens`, whichever
+  spelling the response uses.
 - **Tokenizer catalogue: four more GWDG models** — `eurollm-22b-instruct-2512`,
   `deepseek-v4.1-flash-1017`, `glm-5.3` and `mistral-large-4-1t-a52b` now
   resolve to their Hugging Face repositories. All four are in GWDG's live
@@ -38,6 +56,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Docs, docstrings, tests and examples describe downstream consumers
   generically. Notebook kernel metadata uses `Python 3`.
+- **The shared transport has a route-neutral name.** `post_chat_completion`
+  and `apost_chat_completion` are now `post_generation` and
+  `apost_generation`, since `/completions` uses them too. The old names stay
+  as aliases, without a deprecation warning, and `saia_python.aio` exports
+  both.
 
 ### Fixed
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
-from ._http import RetryPolicy, coerce_retry, post_chat_completion, resolve_retry
+from ._http import RetryPolicy, coerce_retry, post_generation, resolve_retry
 from ._streaming import SSEStream
 from .structured import ModelT, parse_structured, response_format_for
 
@@ -70,7 +70,7 @@ class ChatService:
         if max_tokens is not None:
             body["max_tokens"] = max_tokens
 
-        return post_chat_completion(
+        return post_generation(
             self._session,
             f"{self._base_url}/chat/completions",
             body,

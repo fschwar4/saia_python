@@ -193,6 +193,8 @@ await aclient.chat.completions.create(...)             # async twin, same shape
   - Turn them into `post_generation` / `apost_generation`.
   - The body is already generic: url, body, stream, headers, policy. Only the name and the docstring are chat-specific.
   - Keep the old names as thin aliases, so chat and ARCANA stay untouched.
+  - *Why rename at all:* the behaviour does not change, so this is not needed for the new routes to work. The neutral name keeps the call sites for `/completions`, `/responses` and `/messages` readable, and it discourages chat-specific logic in a function those routes share.
+  - *Compatibility:* the sync function lives in the private `_http` module. The async one is public (`saia_python.aio`), so both old names stay as aliases, without a deprecation warning.
 - **All three calls count as idempotent for 429 retry,** with the same reasoning as chat: a 429 means nothing was generated. For streams, the retry happens before the stream is handed out, never mid-stream (ADR-0006).
 - **Body builders go in `_payloads.py`,** next to `build_chat_body`: `build_completion_body`, `build_response_body` and `build_message_body`. Sync and async share them. Parameters left at `None` are omitted, and `**kwargs` pass through.
 - **No extra headers.** The session's Bearer auth is enough for `/messages`, as verified live.
@@ -216,6 +218,10 @@ await aclient.chat.completions.create(...)             # async twin, same shape
 - Messages: `type == "content_block_delta"` with `delta.type == "text_delta"` gives `delta.text`.
 
 Everything else is skipped: usage chunks, `reasoning_text` / `thinking_delta`, `signature_delta`, and lifecycle events.
+
+Two details were settled in phase 2:
+- **First choice only.** With several choices (`n` > 1, or a list of prompts) the chunks of the choices alternate (seen 2026-11-20). The helpers read only the choice with `index` 0, as `text_of` does, so two answers never interleave.
+- **Closing.** The helpers close the stream when iteration ends, also when the caller stops early or an error chunk raises, so an abandoned stream does not hold on to its connection.
 
 Both paths, same helper:
 
@@ -285,3 +291,4 @@ Each phase is its own commit (or a few) and passes every CI gate on its own.
 3. **Functional wrappers:** not now. They are on the TODO list and not urgent.
 4. **Errors inside a stream:** `iter_text` raises `APIError`.
 5. **Release:** no v0.10.2. Everything ships together as v0.11.0 (§10).
+6. **Transport naming (2026-11-20):** rename to `post_generation` / `apost_generation`; the old names stay as aliases without a deprecation warning (§5).

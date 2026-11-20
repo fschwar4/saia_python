@@ -1,9 +1,10 @@
 """Shared HTTP plumbing used by more than one service.
 
-Kept in one place so the chat-completion request shape and the
-background-thread ``Session`` helper each have a single implementation,
-rather than being copied across :mod:`saia_python.chat`,
-:mod:`saia_python.arcana`, and :mod:`saia_python.voice`.
+Kept in one place so the generation request (chat, ARCANA chat, raw-text
+completions), the 429 retry policy and the background-thread ``Session``
+helper each have a single implementation, rather than being copied across
+:mod:`saia_python.chat`, :mod:`saia_python.arcana`,
+:mod:`saia_python.completions` and :mod:`saia_python.voice`.
 """
 
 from __future__ import annotations
@@ -211,7 +212,7 @@ def new_session_like(template: requests.Session) -> requests.Session:
     return session
 
 
-def post_chat_completion(
+def post_generation(
     session: requests.Session,
     url: str,
     body: dict,
@@ -221,24 +222,29 @@ def post_chat_completion(
     policy: RetryPolicy | None = None,
     sleep: Callable[[float], object] = time.sleep,
 ) -> dict | SSEStream:
-    """POST a chat-completion request and normalise the response.
+    """POST a generation request and normalise the response.
 
-    Shared by :meth:`ChatService.completions` and :meth:`ArcanaService.chat`:
-    both hit the same ``/chat/completions`` endpoint with identical
-    stream/non-stream handling and rate-limit surfacing — only the request
-    ``body`` fields and auth ``headers`` differ, so those stay with the caller.
+    The one transport for every route that generates text:
+    ``/chat/completions`` (:meth:`ChatService.completions
+    <saia_python.chat.ChatService.completions>` and :meth:`ArcanaService.chat
+    <saia_python.arcana.ArcanaService.chat>`) and ``/completions``
+    (:meth:`CompletionsService.create
+    <saia_python.completions.CompletionsService.create>`). They share the
+    stream/non-stream handling, the 429 retry and the rate-limit surfacing; the
+    URL, the ``body`` fields and the auth ``headers`` stay with the caller.
 
     Args:
         session: The authenticated :class:`requests.Session`.
-        url: The fully-qualified ``/chat/completions`` URL.
+        url: The fully-qualified route URL.
         body: The request JSON body (already assembled by the caller).
         headers: Per-request headers. ``None`` uses the session defaults
             (the Bearer auth + ``Accept: application/json``).
         stream: When ``True``, request SSE and return an :class:`SSEStream`.
         policy: Rate-limit :class:`RetryPolicy`; ``None`` uses the defaults
-            (retry on). Chat completions are idempotent, so an initial 429 is
-            retried per the policy — and for streaming the retry happens *before*
-            the stream is exposed (never mid-stream).
+            (retry on). A 429 means nothing was generated, so the call counts
+            as idempotent and an initial 429 is retried per the policy — and
+            for streaming the retry happens *before* the stream is exposed
+            (never mid-stream).
         sleep: Injectable sleep hook (tests pass a recorder so they never block).
 
     Returns:
@@ -277,3 +283,7 @@ def post_chat_completion(
     result = resp.json()
     result["_rate_limits"] = parse_rate_limits(resp.headers).to_dict()
     return result
+
+
+#: The earlier, chat-specific name of :func:`post_generation`, kept as an alias.
+post_chat_completion = post_generation

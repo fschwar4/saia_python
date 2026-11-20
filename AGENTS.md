@@ -19,11 +19,14 @@ server of its own**. The **sync core uses `requests`**; a **native async layer**
 (`saia_python.aio`, added in v0.9.0) is backed by `httpx.AsyncClient` and pulled
 in only via the optional `[async]` extra.
 
-- **Package:** `saia_python/` (services: `chat`, `arcana`, `documents`, `models`,
-  `voice`; plus `openai_compat`, `rate_limits`, `auth`; `client.py` is the entry
-  point). Async twins live in `aio.py` + `_async_*.py`.
-- **`responses.py`** — helpers for reading OpenAI-style ChatCompletion envelopes
-  (`text_of`); **not** a wrapper for OpenAI's Responses API. SAIA's
+- **Package:** `saia_python/` (services: `chat`, `completions`, `arcana`,
+  `documents`, `models`, `voice`; plus `openai_compat`, `rate_limits`, `auth`;
+  `client.py` is the entry point). Async twins live in `aio.py` + `_async_*.py`.
+  Routes that generate text share one transport (`_http.post_generation`, async
+  `_async_http.apost_generation`) and build their bodies in `_payloads.py`.
+- **`responses.py`** — helpers that read chat and completion responses and
+  streams, native dicts and OpenAI SDK objects alike (`text_of`, `iter_text`,
+  `aiter_text`, `usage_of`); **not** a wrapper for OpenAI's Responses API. SAIA's
   `/v1/responses` is **unsupported but seems to work**: GWDG's docs say the
   Responses API is not provided, yet the route answers (verified 2026-10). To
   re-check: `SAIA_RESPONSES_LIVE=1 pytest tests/test_live_responses_route.py`.

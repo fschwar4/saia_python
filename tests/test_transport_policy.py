@@ -15,6 +15,7 @@ from saia_python._http import (
     coerce_retry,
     execute,
     post_chat_completion,
+    post_generation,
     resolve_retry,
 )
 from saia_python._streaming import SSEStream
@@ -258,7 +259,10 @@ class TestExecute:
         assert sleep.waits == [9.0]
 
 
-class TestPostChatCompletionRetry:
+class TestPostGenerationRetry:
+    def test_the_old_name_is_an_alias(self):
+        assert post_chat_completion is post_generation
+
     def test_non_streaming_retries_then_returns_dict(self):
         sess = _session(
             [
@@ -271,7 +275,7 @@ class TestPostChatCompletionRetry:
             ]
         )
         sleep = _Recorder()
-        result = post_chat_completion(
+        result = post_generation(
             sess,
             "u",
             {"model": "m"},
@@ -291,7 +295,7 @@ class TestPostChatCompletionRetry:
             ]
         )
         sleep = _Recorder()
-        result = post_chat_completion(
+        result = post_generation(
             sess,
             "u",
             {"model": "m"},
@@ -307,7 +311,7 @@ class TestPostChatCompletionRetry:
         r200 = _resp(200, {"x-ratelimit-remaining-minute": "5"})
         sess = _session([r429, r200])
         sleep = _Recorder()
-        stream = post_chat_completion(
+        stream = post_generation(
             sess,
             "u",
             {"model": "m"},
@@ -324,7 +328,7 @@ class TestPostChatCompletionRetry:
         sess = _session([_resp(429), _resp(429), _resp(429)])
         sleep = _Recorder()
         with pytest.raises(RateLimitError):
-            post_chat_completion(
+            post_generation(
                 sess,
                 "u",
                 {"model": "m"},

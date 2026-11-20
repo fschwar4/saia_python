@@ -2,7 +2,8 @@
 
 Transport-free — no ``Session``, no ``httpx.AsyncClient``, no I/O — so these
 helpers are reused **verbatim** by the sync services (:mod:`saia_python.chat`,
-:mod:`saia_python.arcana`), the async services (:mod:`saia_python.aio`), and
+:mod:`saia_python.arcana`, :mod:`saia_python.completions`), the async services
+(:mod:`saia_python.aio`), and
 external gateways that assemble the request themselves (e.g. a proxy that builds
 its own body to inject a system prompt, then reuses
 :func:`apply_arcana_fields` to keep the ARCANA injection identical to ours).
@@ -47,6 +48,32 @@ def build_chat_body(
         body["top_p"] = top_p
     if max_tokens is not None:
         body["max_tokens"] = max_tokens
+    return body
+
+
+def build_completion_body(
+    model: str,
+    prompt: str | list[str] | list[int] | list[list[int]],
+    *,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+    **kwargs: Any,
+) -> dict:
+    """Assemble a ``/completions`` (raw-text completion) request body.
+
+    ``prompt`` is sent as given: a string, a list of strings (one completion
+    each), or token ids. As in :func:`build_chat_body`, the sampling knobs are
+    omitted when ``None`` and extra ``kwargs`` (``stop``, ``seed``, ``echo``,
+    ``response_format``, …) are merged verbatim.
+    """
+    body: dict = {"model": model, "prompt": prompt, **kwargs}
+    if max_tokens is not None:
+        body["max_tokens"] = max_tokens
+    if temperature is not None:
+        body["temperature"] = temperature
+    if top_p is not None:
+        body["top_p"] = top_p
     return body
 
 
