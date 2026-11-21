@@ -1,10 +1,11 @@
 """Shared HTTP plumbing used by more than one service.
 
 Kept in one place so the generation request (chat, ARCANA chat, raw-text
-completions), the 429 retry policy and the background-thread ``Session``
-helper each have a single implementation, rather than being copied across
-:mod:`saia_python.chat`, :mod:`saia_python.arcana`,
-:mod:`saia_python.completions` and :mod:`saia_python.voice`.
+completions, Responses API), the 429 retry policy and the background-thread
+``Session`` helper each have a single implementation, rather than being copied
+across :mod:`saia_python.chat`, :mod:`saia_python.arcana`,
+:mod:`saia_python.completions`, :mod:`saia_python.responses_api` and
+:mod:`saia_python.voice`.
 """
 
 from __future__ import annotations
@@ -227,9 +228,11 @@ def post_generation(
     The one transport for every route that generates text:
     ``/chat/completions`` (:meth:`ChatService.completions
     <saia_python.chat.ChatService.completions>` and :meth:`ArcanaService.chat
-    <saia_python.arcana.ArcanaService.chat>`) and ``/completions``
+    <saia_python.arcana.ArcanaService.chat>`), ``/completions``
     (:meth:`CompletionsService.create
-    <saia_python.completions.CompletionsService.create>`). They share the
+    <saia_python.completions.CompletionsService.create>`) and ``/responses``
+    (:meth:`ResponsesService.create
+    <saia_python.responses_api.ResponsesService.create>`). They share the
     stream/non-stream handling, the 429 retry and the rate-limit surfacing; the
     URL, the ``body`` fields and the auth ``headers`` stay with the caller.
 

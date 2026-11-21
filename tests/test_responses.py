@@ -12,7 +12,14 @@ import logging
 
 import pytest
 
-from saia_python import aiter_text, iter_text, text_of, usage_of
+from saia_python import (
+    AsyncTextIterator,
+    TextIterator,
+    aiter_text,
+    iter_text,
+    text_of,
+    usage_of,
+)
 from saia_python.exceptions import APIError
 
 from ._generation_fixtures import (
@@ -20,6 +27,12 @@ from ._generation_fixtures import (
     COMPLETION_N2_CHUNKS,
     COMPLETION_STREAM_LINES,
     COMPLETION_TEXT,
+    RESPONSE,
+    RESPONSE_INCOMPLETE,
+    RESPONSE_REASONING,
+    RESPONSE_REASONING_STREAM_LINES,
+    RESPONSE_STREAM_LINES,
+    RESPONSE_TEXT,
 )
 
 
@@ -109,12 +122,17 @@ def _chat_chunk(content=None, *, role=None, index=0, **delta):
     }
 
 
-def _completion_chunks():
+def _parse(lines):
+    """The JSON of each ``data:`` line, as :class:`~saia_python.SSEStream` reads it."""
     return [
         json.loads(line[len("data: ") :])
-        for line in COMPLETION_STREAM_LINES
+        for line in lines
         if line.startswith("data: {")
     ]
+
+
+def _completion_chunks():
+    return _parse(COMPLETION_STREAM_LINES)
 
 
 _CHAT_COMPLETION = {
@@ -181,6 +199,124 @@ def test_text_of_returns_empty_for_something_that_is_no_response(caplog):
     with caplog.at_level(logging.WARNING, logger="saia_python.responses"):
         assert text_of("not a response") == ""
     assert any("not a response" in r.message for r in caplog.records)
+
+
+# --- text_of: tool calls ---------------------------------------------------------
+
+_TOOL_CALL = {"name": "get_weather", "arguments": '{"city": "Paris"}'}
+
+_CHAT_TOOL_CALL = {
+    **_CHAT_COMPLETION,
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": "call_test", "type": "function", "function": _TOOL_CALL}
+                ],
+            },
+            "finish_reason": "tool_calls",
+        }
+    ],
+}
+
+_RESPONSE_TOOL_CALL = {
+    **RESPONSE,
+    "output": [
+        {
+            "type": "function_call",
+            "id": "fc_test",
+            "call_id": "call_test",
+            "status": "completed",
+            **_TOOL_CALL,
+        }
+    ],
+}
+
+
+def _logged(caplog):
+    """(level, message) of each record from the helpers' logger."""
+    return [
+        (r.levelname, r.getMessage())
+        for r in caplog.records
+        if r.name == "saia_python.responses"
+    ]
+
+
+@pytest.mark.parametrize(
+    "response", [_CHAT_TOOL_CALL, _RESPONSE_TOOL_CALL], ids=["chat", "responses"]
+)
+def test_text_of_logs_a_tool_call_at_debug_only(caplog, response):
+    with caplog.at_level(logging.DEBUG, logger="saia_python.responses"):
+        assert text_of(response) == ""
+    assert _logged(caplog) == [
+        ("DEBUG", "text_of: no text, the response calls get_weather")
+    ]
+
+
+def test_text_of_logs_the_tool_calls_of_openai_sdk_objects_at_debug_only(caplog):
+    question = [{"role": "user", "content": "Weather in Paris?"}]
+    chat = _sdk_client(
+        json.dumps(_CHAT_TOOL_CALL).encode(), "application/json"
+    ).chat.completions.create(model="m", messages=question)
+    response = _sdk_client(
+        json.dumps(_RESPONSE_TOOL_CALL).encode(), "application/json"
+    ).responses.create(model="m", input=question)
+    with caplog.at_level(logging.DEBUG, logger="saia_python.responses"):
+        assert text_of(chat) == text_of(response) == ""
+    assert (
+        _logged(caplog)
+        == [("DEBUG", "text_of: no text, the response calls get_weather")] * 2
+    )
+
+
+def test_text_of_names_every_tool_called(caplog):
+    chat = {
+        "choices": [
+            {
+                "message": {
+                    "content": None,
+                    "tool_calls": [
+                        {"type": "function", "function": {"name": "get_weather"}},
+                        {"type": "function", "function": {"name": "get_time"}},
+                        None,  # malformed, still a call
+                    ],
+                },
+                "finish_reason": "tool_calls",
+            }
+        ]
+    }
+    response = {
+        "object": "response",
+        "status": "completed",
+        "output": [
+            {"type": "reasoning", "summary": []},
+            {"type": "function_call", "name": "get_weather", "arguments": "{}"},
+            {"type": "web_search_call", "status": "completed"},
+            "junk",
+        ],
+    }
+    with caplog.at_level(logging.DEBUG, logger="saia_python.responses"):
+        text_of(chat)
+        text_of(response)
+    assert [message for _, message in _logged(caplog)] == [
+        "text_of: no text, the response calls get_weather, get_time, a tool",
+        "text_of: no text, the response calls get_weather, web_search_call",
+    ]
+
+
+def test_text_of_still_warns_about_a_truncated_tool_call(caplog):
+    chat = json.loads(json.dumps(_CHAT_TOOL_CALL))
+    chat["choices"][0]["finish_reason"] = "length"
+    response = {**_RESPONSE_TOOL_CALL, "status": "incomplete"}
+    with caplog.at_level(logging.DEBUG, logger="saia_python.responses"):
+        assert text_of(chat) == text_of(response) == ""
+    assert _logged(caplog) == [
+        ("WARNING", "text_of: first choice has empty content; finish_reason='length'"),
+        ("WARNING", "text_of: response has no output text; status='incomplete'"),
+    ]
 
 
 # --- iter_text / aiter_text ------------------------------------------------------
@@ -374,3 +510,258 @@ def test_usage_of_accepts_openai_sdk_objects():
         "output_tokens": 4,
         "total_tokens": 10,
     }
+
+
+# --- the Responses API shape -----------------------------------------------------
+
+
+def _sse_lines_body(lines) -> bytes:
+    return ("\n".join(lines) + "\n").encode()
+
+
+def test_text_of_reads_a_responses_api_object():
+    assert text_of(RESPONSE) == RESPONSE_TEXT
+
+
+def test_text_of_skips_the_reasoning_item():
+    assert RESPONSE_REASONING["output"][0]["type"] == "reasoning"
+    assert text_of(RESPONSE_REASONING) == "4"
+
+
+def test_text_of_returns_the_partial_text_of_an_incomplete_response():
+    assert RESPONSE_INCOMPLETE["status"] == "incomplete"
+    assert text_of(RESPONSE_INCOMPLETE) == "2, 3"
+
+
+def test_text_of_joins_every_output_text_part_and_skips_the_rest():
+    response = {
+        "object": "response",
+        "output": [
+            {"type": "function_call", "name": "f", "arguments": "{}"},
+            {
+                "type": "message",
+                "content": [
+                    {"type": "output_text", "text": "one "},
+                    {"type": "refusal", "refusal": "no"},
+                ],
+            },
+            {"type": "message", "content": [{"type": "output_text", "text": "two"}]},
+        ],
+    }
+    assert text_of(response) == "one two"
+
+
+def test_text_of_warns_when_a_response_has_no_output_text(caplog):
+    with caplog.at_level(logging.WARNING, logger="saia_python.responses"):
+        assert text_of({"object": "response", "status": "failed", "output": []}) == ""
+    assert any("no output text" in r.message for r in caplog.records)
+
+
+def test_text_of_and_usage_of_read_the_final_stream_event():
+    final = _parse(RESPONSE_STREAM_LINES)[-1]
+    assert final["type"] == "response.completed"
+    assert text_of(final) == RESPONSE_TEXT
+    assert usage_of(final) == {
+        "input_tokens": 27,
+        "output_tokens": 6,
+        "total_tokens": 33,
+    }
+
+
+def test_text_of_and_usage_of_read_openai_sdk_response_objects():
+    response = _sdk_client(
+        json.dumps(RESPONSE).encode(), "application/json"
+    ).responses.create(model="m", input="Name the three primary colours.")
+    assert type(response).__name__ == "Response"
+    assert text_of(response) == response.output_text == RESPONSE_TEXT
+    assert usage_of(response)["total_tokens"] == 33
+
+
+def test_iter_text_joins_a_responses_stream():
+    assert list(iter_text(_parse(RESPONSE_STREAM_LINES))) == [
+        "Red",
+        ", Green,",
+        " Blue",
+    ]
+
+
+def test_iter_text_skips_reasoning_deltas():
+    events = _parse(RESPONSE_REASONING_STREAM_LINES)
+    kinds = {event["type"] for event in events}
+    assert "response.reasoning_text.delta" in kinds
+    assert list(iter_text(events)) == ["4"]
+
+
+def test_iter_text_reads_openai_sdk_responses_streams():
+    client = _sdk_client(_sse_lines_body(RESPONSE_STREAM_LINES), "text/event-stream")
+    stream = client.responses.create(model="m", input="x", stream=True)
+    assert "".join(iter_text(stream)) == RESPONSE_TEXT
+
+    client = _sdk_client(
+        _sse_lines_body(RESPONSE_REASONING_STREAM_LINES), "text/event-stream"
+    )
+    stream = client.responses.create(model="m", input="x", stream=True)
+    assert "".join(iter_text(stream)) == "4"
+
+
+def test_iter_text_raises_on_an_error_event():
+    events = [
+        {"type": "response.output_text.delta", "delta": "partial"},
+        {
+            "type": "error",
+            "code": "server_error",
+            "message": "boom in the middle",
+            "param": None,
+            "sequence_number": 5,
+        },
+    ]
+    pieces = []
+    with pytest.raises(APIError, match="boom in the middle") as exc:
+        for piece in iter_text(events):
+            pieces.append(piece)
+    assert pieces == ["partial"]
+    assert exc.value.status_code is None
+
+
+def test_iter_text_raises_on_response_failed():
+    failed = {
+        "type": "response.failed",
+        "response": {
+            "object": "response",
+            "status": "failed",
+            "error": {"code": "server_error", "message": "the model failed"},
+        },
+    }
+    with pytest.raises(APIError, match="the model failed"):
+        list(iter_text([failed]))
+    no_detail = {"type": "response.failed", "response": {"status": "failed"}}
+    with pytest.raises(APIError, match="the response failed"):
+        list(iter_text([no_detail]))
+
+
+def test_iter_text_treats_response_incomplete_as_the_normal_end():
+    events = [
+        {"type": "response.output_text.delta", "delta": "2, 3"},
+        {"type": "response.incomplete", "response": {"status": "incomplete"}},
+    ]
+    assert list(iter_text(events)) == ["2, 3"]
+
+
+def test_aiter_text_joins_a_responses_stream():
+    async def _events():
+        for event in _parse(RESPONSE_STREAM_LINES):
+            yield event
+
+    async def _run():
+        return "".join([piece async for piece in aiter_text(_events())])
+
+    assert asyncio.run(_run()) == RESPONSE_TEXT
+
+
+# --- the iterator keeps the last chunk -------------------------------------------
+
+
+def test_iter_text_keeps_the_last_chunk_for_usage_of():
+    usage_chunk = {
+        "object": "chat.completion.chunk",
+        "choices": [],
+        "usage": {"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7},
+    }
+    text = iter_text([_chat_chunk("Hel"), _chat_chunk("lo"), usage_chunk])
+    assert isinstance(text, TextIterator)
+    assert text.last is None
+    assert list(text) == ["Hel", "lo"]
+    assert text.last is usage_chunk
+    assert usage_of(text.last)["total_tokens"] == 7
+
+    text = iter_text(_completion_chunks())
+    assert "".join(text) == COMPLETION_TEXT
+    assert usage_of(text.last) == {
+        "input_tokens": 6,
+        "output_tokens": 4,
+        "total_tokens": 10,
+    }
+
+    text = iter_text(_parse(RESPONSE_STREAM_LINES))
+    assert "".join(text) == RESPONSE_TEXT
+    assert text.last["type"] == "response.completed"
+    assert text_of(text.last) == RESPONSE_TEXT
+    assert usage_of(text.last)["total_tokens"] == 33
+
+
+def test_iter_text_keeps_the_last_chunk_of_openai_sdk_streams():
+    body = ("\n".join(COMPLETION_STREAM_LINES) + "\n").encode()
+    stream = _sdk_client(body, "text/event-stream").completions.create(
+        model="m", prompt="Say hi in one word:", max_tokens=4, stream=True
+    )
+    text = iter_text(stream)
+    assert "".join(text) == COMPLETION_TEXT
+    assert not isinstance(text.last, dict)  # the SDK's own chunk object
+    assert usage_of(text.last)["total_tokens"] == 10
+
+    client = _sdk_client(_sse_lines_body(RESPONSE_STREAM_LINES), "text/event-stream")
+    text = iter_text(client.responses.create(model="m", input="x", stream=True))
+    assert "".join(text) == RESPONSE_TEXT
+    assert type(text.last).__name__ == "ResponseCompletedEvent"
+    assert usage_of(text.last)["total_tokens"] == 33
+
+
+def test_iter_text_keeps_the_chunk_that_reported_an_error():
+    error_chunk = {"error": {"message": "boom"}}
+    text = iter_text([_chat_chunk("partial"), error_chunk])
+    with pytest.raises(APIError):
+        list(text)
+    assert text.last is error_chunk
+
+
+def test_iter_text_close_stops_reading_and_closes_the_stream():
+    first = _chat_chunk("a")
+    stream = _ClosableStream([first, _chat_chunk("b")])
+    text = iter_text(stream)
+    assert next(text) == "a"
+    assert text.last is first
+    text.close()
+    assert stream.closed
+    assert list(text) == []
+
+
+def test_aiter_text_keeps_the_last_event():
+    async def _events():
+        for event in _parse(RESPONSE_STREAM_LINES):
+            yield event
+
+    async def _run():
+        text = aiter_text(_events())
+        assert isinstance(text, AsyncTextIterator)
+        assert text.last is None
+        joined = "".join([piece async for piece in text])
+        return joined, text.last
+
+    joined, last = asyncio.run(_run())
+    assert joined == RESPONSE_TEXT
+    assert last["type"] == "response.completed"
+    assert usage_of(last)["total_tokens"] == 33
+
+
+def test_aiter_text_aclose_stops_reading_and_closes_the_stream():
+    closed = []
+
+    class AsyncStream:
+        def __init__(self, chunks):
+            self._chunks = chunks
+
+        async def __aiter__(self):
+            for chunk in self._chunks:
+                yield chunk
+
+        async def aclose(self):
+            closed.append(True)
+
+    async def _run():
+        text = aiter_text(AsyncStream([_chat_chunk("a"), _chat_chunk("b")]))
+        first = await text.__anext__()
+        await text.aclose()
+        return first, [piece async for piece in text]
+
+    assert asyncio.run(_run()) == ("a", [])
+    assert closed == [True]

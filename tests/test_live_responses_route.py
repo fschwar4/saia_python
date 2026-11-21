@@ -1,8 +1,9 @@
-"""Live check that SAIA's undocumented ``/v1/responses`` route still answers.
+"""Live check that SAIA's ``/v1/responses`` route still answers.
 
-GWDG's docs say SAIA does not provide OpenAI's Responses API, yet the route
-currently returns genuine Responses API objects. This test tracks that against
-the real service, so it needs an API key and the network. It is gated behind the
+As of 2026-11-20, GWDG's documentation does not list ``/responses``; the route
+works and returns genuine Responses API objects (checked live that day). This
+test tracks that against the real service, so it needs an API key and the
+network. It is gated behind the
 ``SAIA_RESPONSES_LIVE`` environment variable and never runs in CI or the offline
 gate by default::
 

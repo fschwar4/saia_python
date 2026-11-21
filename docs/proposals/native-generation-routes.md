@@ -10,9 +10,8 @@
 
 ## 1. Motivation
 
-GWDG's sandbox (`https://saia.gwdg.de/sandbox`) now shows example calls for six
-routes. saia-python wraps two of them itself: `/chat/completions` and `/models`.
-Of the other four:
+saia-python wraps two of SAIA's routes itself: `/chat/completions` and
+`/models`. Four more are of interest:
 
 | Route | Today in saia-python |
 |---|---|
@@ -162,7 +161,7 @@ client.messages.create(
 - **`max_tokens` is required for `messages.create`.** SAIA rejects a call without it, so the signature enforces it rather than letting the call fail at runtime.
 - **Return values.** As in chat, a dict carries an extra `_rate_limits` key, and a stream exposes `.rate_limits`.
 - **Modules.** `saia_python/completions.py` (`CompletionsService`), `saia_python/messages.py` (`MessagesService`) and `saia_python/responses_api.py` (`ResponsesService`). The last name is needed because `saia_python/responses.py` already holds `text_of` and is a public import path. Async twins go in `aio.py`, next to `AsyncChatService`.
-- **Docstrings** for `/responses` and `/messages` state that GWDG does not document these routes and that both may change without notice.
+- **Docstrings** for `/responses` and `/messages` give GWDG's documentation status with the date of the check ("As of 2026-11-20, GWDG's documentation does not list …"), next to the date the route was checked live.
 
 ## 4a. Aligning the existing chat service with `.create()`
 
@@ -219,9 +218,12 @@ await aclient.chat.completions.create(...)             # async twin, same shape
 
 Everything else is skipped: usage chunks, `reasoning_text` / `thinking_delta`, `signature_delta`, and lifecycle events.
 
-Two details were settled in phase 2:
-- **First choice only.** With several choices (`n` > 1, or a list of prompts) the chunks of the choices alternate (seen 2026-11-20). The helpers read only the choice with `index` 0, as `text_of` does, so two answers never interleave.
-- **Closing.** The helpers close the stream when iteration ends, also when the caller stops early or an error chunk raises, so an abandoned stream does not hold on to its connection.
+Details settled during implementation:
+- **First choice only** (phase 2). With several choices (`n` > 1, or a list of prompts) the chunks of the choices alternate (seen 2026-11-20). The helpers read only the choice with `index` 0, as `text_of` does, so two answers never interleave.
+- **Closing** (phase 2). The helpers close the stream when iteration ends, also when the caller stops early or an error chunk raises, so an abandoned stream does not hold on to its connection.
+- **The final Responses event** (phase 3). A Responses stream's last event, `response.completed`, carries the whole response, so `text_of` and `usage_of` read it just as they read the response itself. For chat and completions, the counterpart is the final usage chunk.
+- **The last chunk** (phase 3). `iter_text` and `aiter_text` return an iterator that keeps the last chunk it read in `.last`. SAIA sends the token counts in that chunk on all three routes (seen 2026-11-20), so a caller can stream the text live and still get `usage_of(text.last)`. The iterator records the chunk itself, so it works with SDK streams too.
+- **Tool calls** (phase 3). A response that calls a tool instead of answering gives `""` from `text_of` and a DEBUG line naming the tool, not a warning: in a tool loop it is the expected answer. A truncated tool call keeps the warning, since its arguments may be cut off.
 
 Both paths, same helper:
 
@@ -269,7 +271,7 @@ for piece in iter_text(client.messages.create(M, msgs, 512, stream=True)):
   - **The results of §2a,** dated in the same way.
 - **`docs/api/`:** new autodoc pages `completions.rst`, `responses_api.rst` and `messages.rst`. Add `iter_text` to `responses.rst`.
 - **README:** a row in "Supported Services" and a short Quick Start snippet.
-- **AGENTS.md:** replace the `/v1/responses` "unsupported but seems to work" note with a pointer to the new module and its undocumented status.
+- **AGENTS.md:** replace the `/v1/responses` "unsupported but seems to work" note with a pointer to the new module and its documentation status, dated.
 - **CHANGELOG:** `[Unreleased]` entries under Added.
 - **ADR-0008:** "Native wrappers for routes GWDG does not document". It records the dicts-not-models choice, stateless only, shared shape-agnostic helpers, and the rule that live tests guard these routes.
 

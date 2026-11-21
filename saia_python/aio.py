@@ -24,8 +24,8 @@ calls and ``async for`` over a stream::
             ...
 
 **Scope.** The async layer covers the **data plane** — chat completions,
-raw-text completions and ARCANA RAG chat (streaming + non-streaming), the
-rate-limit
+raw-text completions, the Responses API and ARCANA RAG chat (streaming +
+non-streaming), the rate-limit
 :class:`~saia_python.RetryPolicy` as a per-call ``retry`` keyword, rate-limit
 surfacing, and an informative 429 error when retry is off — plus the
 lightweight read-only control-plane calls (``models``, arcana
@@ -53,6 +53,7 @@ from ._payloads import (
     arcana_chat_headers,
     build_chat_body,
     build_completion_body,
+    build_response_body,
 )
 from .auth import resolve_credentials
 from .exceptions import raise_for_status
@@ -79,6 +80,7 @@ __all__ = [
     "AsyncSAIAClient",
     "AsyncChatService",
     "AsyncCompletionsService",
+    "AsyncResponsesService",
     "AsyncArcanaService",
     "AsyncModelsService",
     "AsyncSSEStream",
@@ -237,6 +239,65 @@ class AsyncCompletionsService:
 
     def __repr__(self) -> str:
         return f"AsyncCompletionsService(base_url={self._base_url!r})"
+
+
+class AsyncResponsesService:
+    """Async access to ``/responses`` (the twin of :class:`~saia_python.responses_api.ResponsesService`).
+
+    As of 2026-11-20, GWDG's documentation does not list the route; the sync
+    class says what SAIA supports there.
+    """
+
+    def __init__(
+        self,
+        client: httpx.AsyncClient,
+        base_url: str,
+        *,
+        retry: RetryPolicy | bool | None = None,
+    ):
+        self._client = client
+        self._base_url = base_url
+        self._retry = coerce_retry(retry)
+
+    async def create(
+        self,
+        model: str,
+        input: str | list[dict],
+        *,
+        instructions: str | None = None,
+        max_output_tokens: int | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        stream: bool = False,
+        retry: RetryPolicy | bool | None = None,
+        **kwargs: Any,
+    ) -> dict | AsyncSSEStream:
+        """Create a response. See :meth:`ResponsesService.create
+        <saia_python.responses_api.ResponsesService.create>`.
+
+        With ``stream=False`` returns the response dict (plus a ``_rate_limits``
+        key); with ``stream=True`` returns an :class:`AsyncSSEStream` of event
+        dicts to iterate, e.g. with :func:`~saia_python.aiter_text`.
+        """
+        body = build_response_body(
+            model,
+            input,
+            instructions=instructions,
+            max_output_tokens=max_output_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            **kwargs,
+        )
+        return await apost_generation(
+            self._client,
+            f"{self._base_url}/responses",
+            body,
+            stream=stream,
+            policy=resolve_retry(self._retry, retry),
+        )
+
+    def __repr__(self) -> str:
+        return f"AsyncResponsesService(base_url={self._base_url!r})"
 
 
 class AsyncArcanaService:
@@ -473,6 +534,7 @@ class AsyncSAIAClient:
         )
         self._chat: AsyncChatService | None = None
         self._completions: AsyncCompletionsService | None = None
+        self._responses: AsyncResponsesService | None = None
         self._arcana: AsyncArcanaService | None = None
         self._models: AsyncModelsService | None = None
         # The model get_rate_limits() probes with, once looked up.
@@ -495,6 +557,15 @@ class AsyncSAIAClient:
                 self._client, self._base_url, retry=self._retry
             )
         return self._completions
+
+    @property
+    def responses(self) -> AsyncResponsesService:
+        """Async Responses API service (``/responses``; not in GWDG's docs)."""
+        if self._responses is None:
+            self._responses = AsyncResponsesService(
+                self._client, self._base_url, retry=self._retry
+            )
+        return self._responses
 
     @property
     def arcana(self) -> AsyncArcanaService:

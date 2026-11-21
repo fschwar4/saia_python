@@ -2,8 +2,9 @@
 
 Transport-free — no ``Session``, no ``httpx.AsyncClient``, no I/O — so these
 helpers are reused **verbatim** by the sync services (:mod:`saia_python.chat`,
-:mod:`saia_python.arcana`, :mod:`saia_python.completions`), the async services
-(:mod:`saia_python.aio`), and
+:mod:`saia_python.arcana`, :mod:`saia_python.completions`,
+:mod:`saia_python.responses_api`), the async services (:mod:`saia_python.aio`),
+and
 external gateways that assemble the request themselves (e.g. a proxy that builds
 its own body to inject a system prompt, then reuses
 :func:`apply_arcana_fields` to keep the ARCANA injection identical to ours).
@@ -70,6 +71,36 @@ def build_completion_body(
     body: dict = {"model": model, "prompt": prompt, **kwargs}
     if max_tokens is not None:
         body["max_tokens"] = max_tokens
+    if temperature is not None:
+        body["temperature"] = temperature
+    if top_p is not None:
+        body["top_p"] = top_p
+    return body
+
+
+def build_response_body(
+    model: str,
+    input: str | list[dict],
+    *,
+    instructions: str | None = None,
+    max_output_tokens: int | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+    **kwargs: Any,
+) -> dict:
+    """Assemble a ``/responses`` (OpenAI Responses API) request body.
+
+    ``input`` is a string or a list of input items (messages such as
+    ``{"role": "user", "content": "…"}``, earlier output items, tool results);
+    ``instructions`` is the system prompt. As in :func:`build_chat_body`, the
+    knobs are omitted when ``None`` and extra ``kwargs`` (``tools``,
+    ``tool_choice``, ``text``, ``reasoning``, …) are merged verbatim.
+    """
+    body: dict = {"model": model, "input": input, **kwargs}
+    if instructions is not None:
+        body["instructions"] = instructions
+    if max_output_tokens is not None:
+        body["max_output_tokens"] = max_output_tokens
     if temperature is not None:
         body["temperature"] = temperature
     if top_p is not None:

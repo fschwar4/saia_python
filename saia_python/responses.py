@@ -9,13 +9,17 @@ dumped to a dict first. The shapes understood so far:
   ``choices[0].delta.content``.
 - ``text_completion`` from ``/completions``: the text is ``choices[0].text``,
   in a stream chunk too.
+- ``response`` from ``/responses`` (OpenAI's Responses API): the text is every
+  ``output_text`` part of every ``message`` item; a stream sends it in
+  ``response.output_text.delta`` events. Reasoning items are skipped.
 
 Every caller would otherwise write the same lookup chain. The helpers make it
-safe and uniform: empty ``choices`` lists and missing ``content`` fields
-return ``""`` (with a logged warning) so downstream string-handling code
-doesn't have to special-case them.
+safe and uniform: a response without text returns ``""`` (with a logged
+warning, or only a DEBUG line when the response calls a tool instead) so
+downstream string-handling code doesn't have to special-case it.
 
-Despite the module name, this is **not** a wrapper for OpenAI's Responses API.
+Despite the module name, this is **not** a wrapper for OpenAI's Responses API;
+that is :mod:`saia_python.responses_api`.
 """
 
 from __future__ import annotations
@@ -23,7 +27,14 @@ from __future__ import annotations
 import inspect
 import json
 import logging
-from collections.abc import AsyncIterable, AsyncIterator, Iterable, Iterator
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterable,
+    AsyncIterator,
+    Generator,
+    Iterable,
+    Iterator,
+)
 from typing import Any
 
 from .exceptions import APIError
@@ -39,6 +50,35 @@ def _as_dict(obj: Any) -> Any:
     return dump() if callable(dump) else obj
 
 
+def _unwrap_event(data: Any) -> Any:
+    """The response a Responses stream event carries, else ``data`` itself.
+
+    ``response.created``, ``response.completed`` and the like wrap the whole
+    response object; the last one holds the final output and ``usage``.
+    """
+    if (
+        isinstance(data, dict)
+        and str(data.get("type", "")).startswith("response.")
+        and isinstance(data.get("response"), dict)
+    ):
+        return data["response"]
+    return data
+
+
+def _output_text(data: dict) -> str:
+    """Join the ``output_text`` parts of a Responses API object's message items."""
+    texts = []
+    for item in data.get("output") or ():
+        if not isinstance(item, dict) or item.get("type") != "message":
+            continue
+        for part in item.get("content") or ():
+            if isinstance(part, dict) and part.get("type") == "output_text":
+                text = part.get("text")
+                if isinstance(text, str):
+                    texts.append(text)
+    return "".join(texts)
+
+
 def _is_completion(data: dict, choice: dict) -> bool:
     """Whether ``data`` is a ``text_completion`` (``/completions``) payload."""
     kind = data.get("object")
@@ -47,14 +87,66 @@ def _is_completion(data: dict, choice: dict) -> bool:
     return "text" in choice and "message" not in choice and "delta" not in choice
 
 
-def text_of(response: Any) -> str:
-    """Extract the generated text from a chat, RAG or completion response.
+def _chat_tool_names(message: dict) -> list[str]:
+    """The names of the functions a chat message calls."""
+    names = []
+    for call in message.get("tool_calls") or ():
+        function = call.get("function") if isinstance(call, dict) else None
+        name = function.get("name") if isinstance(function, dict) else None
+        names.append(name if isinstance(name, str) and name else "a tool")
+    return names
 
-    Reads ``choices[0].message.content`` (chat) or ``choices[0].text``
-    (``text_completion``) with full nil-safety: an empty ``choices`` list,
-    a missing ``message`` key, or a ``None`` ``content`` field all collapse
-    to ``""`` rather than raising. Both empty-response cases log a warning
-    at this module's logger so silent regressions surface in logs.
+
+def _response_tool_names(data: dict) -> list[str]:
+    """The tools a Responses API object calls: its ``*_call`` output items.
+
+    A function call is named by its ``name``, a built-in tool call
+    (``web_search_call`` and the like) by its type.
+    """
+    names = []
+    for item in data.get("output") or ():
+        kind = item.get("type") if isinstance(item, dict) else None
+        if isinstance(kind, str) and kind.endswith("_call"):
+            name = item.get("name")
+            names.append(name if isinstance(name, str) and name else kind)
+    return names
+
+
+def _log_no_text(tools: list[str], truncated: bool, warning: str, detail: Any) -> None:
+    """Log why :func:`text_of` found no text.
+
+    A tool call is the expected answer in a tool loop, so it gets a DEBUG line
+    only. Every other empty answer gets the warning, and so does a truncated
+    tool call: its arguments may be cut off.
+    """
+    if tools and not truncated:
+        log.debug("text_of: no text, the response calls %s", ", ".join(tools))
+    else:
+        log.warning(warning, detail)
+
+
+def text_of(response: Any) -> str:
+    """Extract the generated text from a chat, RAG, completion or Responses
+    API response.
+
+    For chat and completions it reads the first choice's
+    ``message.content`` (chat) or ``text`` (``text_completion``). For a
+    Responses API object it joins every ``output_text`` part of every
+    ``message`` item and skips reasoning, as the OpenAI SDK's
+    ``Response.output_text`` does. A response whose token budget ran out
+    (``finish_reason: "length"``, ``status: "incomplete"``) still gives the
+    text so far.
+
+    Full nil-safety: an empty ``choices`` list, a missing ``message`` key,
+    a ``None`` ``content`` field or a response without output text all
+    collapse to ``""`` rather than raising, and log a warning at this
+    module's logger so silent regressions surface in logs. A response that
+    calls a tool instead of answering also gives ``""`` but logs only at
+    DEBUG, since in a tool loop that is the expected answer; the calls are
+    in ``message.tool_calls`` (chat) or the ``function_call`` items of
+    ``output`` (Responses API). A truncated one (``finish_reason:
+    "length"``, ``status: "incomplete"``) keeps the warning, because its
+    arguments may be cut off.
 
     Works for the response returned by:
 
@@ -62,16 +154,20 @@ def text_of(response: Any) -> str:
     - :meth:`ArcanaService.chat <saia_python.arcana.ArcanaService.chat>`
     - :meth:`CompletionsService.create
       <saia_python.completions.CompletionsService.create>`
-    - ``client.openai.chat.completions.create(...)`` and
-      ``client.openai.completions.create(...)`` — the SDK objects directly,
+    - :meth:`ResponsesService.create
+      <saia_python.responses_api.ResponsesService.create>`, and a Responses
+      stream's final ``response.completed`` event
+    - ``client.openai.chat.completions.create(...)``,
+      ``client.openai.completions.create(...)`` and
+      ``client.openai.responses.create(...)`` — the SDK objects directly,
       or their ``model_dump()``
 
     Args:
         response: A response dict, or an SDK object with ``model_dump()``.
 
     Returns:
-        The first choice's text, or ``""`` if the response carries no
-        usable content.
+        The generated text, or ``""`` if the response carries no usable
+        content.
 
     Example::
 
@@ -80,10 +176,21 @@ def text_of(response: Any) -> str:
         )
         answer = saia_python.text_of(resp)
     """
-    data = _as_dict(response)
+    data = _unwrap_event(_as_dict(response))
     if not isinstance(data, dict):
         log.warning("text_of: not a response: %s", type(response).__name__)
         return ""
+    if data.get("object") == "response":
+        text = _output_text(data)
+        if not text:
+            status = data.get("status")
+            _log_no_text(
+                _response_tool_names(data),
+                status == "incomplete",
+                "text_of: response has no output text; status=%r",
+                status,
+            )
+        return text
     choices = data.get("choices") or []
     if not choices:
         log.warning(
@@ -92,31 +199,52 @@ def text_of(response: Any) -> str:
         )
         return ""
     first = choices[0] if isinstance(choices[0], dict) else {}
+    message: dict = {}
     if _is_completion(data, first):
         content = first.get("text")
     else:
         message = first.get("message") or {}
         content = message.get("content")
     if not content:
-        log.warning(
+        finish_reason = first.get("finish_reason")
+        _log_no_text(
+            _chat_tool_names(message),
+            finish_reason == "length",
             "text_of: first choice has empty content; finish_reason=%r",
-            first.get("finish_reason"),
+            finish_reason,
         )
         return ""
     return str(content)
 
 
+def _stream_error(chunk: dict) -> Any:
+    """What a stream chunk reports as an error, or ``None``.
+
+    - vLLM sends ``{"error": {"message": …, "type": …, "code": …}}`` when
+      generation fails after the stream has begun; older versions send
+      ``{"object": "error", "message": …}``.
+    - The Responses API has an ``error`` event (``{"type": "error",
+      "message": …}``) and ``response.failed``, whose response holds the
+      ``error``.
+    """
+    kind = chunk.get("type")
+    if kind == "response.failed":
+        response = chunk.get("response")
+        error = response.get("error") if isinstance(response, dict) else None
+        return error or "the response failed"
+    if kind == "error":
+        return chunk.get("error") or chunk
+    if chunk.get("object") == "error":
+        return chunk
+    return chunk.get("error")
+
+
 def _raise_for_stream_error(chunk: dict) -> None:
     """Raise :class:`~saia_python.APIError` when a stream chunk reports an error.
 
-    vLLM sends ``{"error": {"message": …, "type": …, "code": …}}`` when
-    generation fails after the stream has begun (older versions send
-    ``{"object": "error", "message": …}``). Without this check the stream
-    would just end and look complete.
+    Without this check the stream would just end and look complete.
     """
-    error = chunk.get("error")
-    if error is None and chunk.get("object") == "error":
-        error = chunk
+    error = _stream_error(chunk)
     if not error:
         return
     message = error.get("message") if isinstance(error, dict) else error
@@ -127,11 +255,15 @@ def _raise_for_stream_error(chunk: dict) -> None:
 
 
 def _chunk_text(chunk: Any) -> str | None:
-    """The text a stream chunk adds to the first choice, or ``None``."""
+    """The answer text one stream chunk or event adds, or ``None``."""
     data = _as_dict(chunk)
     if not isinstance(data, dict):
         return None
     _raise_for_stream_error(data)
+    kind = data.get("type")
+    if isinstance(kind, str):  # a typed event (Responses API)
+        delta = data.get("delta") if kind == "response.output_text.delta" else None
+        return delta if isinstance(delta, str) else None
     for choice in data.get("choices") or ():
         if not isinstance(choice, dict) or (choice.get("index") or 0) != 0:
             continue
@@ -141,38 +273,11 @@ def _chunk_text(chunk: Any) -> str | None:
     return None
 
 
-def iter_text(stream: Iterable[Any]) -> Iterator[str]:
-    """Yield the text deltas of a chat or completion stream.
-
-    Accepts the native :class:`~saia_python.SSEStream` (dict chunks), the
-    OpenAI SDK's stream (chunk objects) or any iterable of chunks. Yields the
-    non-empty text of the first choice only, so a stream with several choices
-    (``n`` > 1, or a list of prompts) is not interleaved. Role-only chunks,
-    reasoning deltas and the final usage chunk are skipped. The stream is
-    closed when iteration ends, also when the consumer stops early.
-
-    Args:
-        stream: The stream to read.
-
-    Yields:
-        Text pieces, in order; joined they give the first choice's text.
-
-    Raises:
-        APIError: A chunk reports an error, which a server sends when
-            generation fails after the stream has begun. ``response_body``
-            holds the chunk as JSON; ``status_code`` is ``None``, since the
-            HTTP response itself succeeded.
-
-    Example::
-
-        stream = client.completions.create(
-            model, "Once upon a time", max_tokens=64, stream=True
-        )
-        for piece in iter_text(stream):
-            print(piece, end="", flush=True)
-    """
+def _read_text(stream: Iterable[Any], seen: list[Any]) -> Generator[str, None, None]:
+    """Yield the text of each chunk of ``stream``, noting the chunk in ``seen``."""
     try:
         for chunk in stream:
+            seen[0] = chunk
             text = _chunk_text(chunk)
             if text:
                 yield text
@@ -182,24 +287,13 @@ def iter_text(stream: Iterable[Any]) -> Iterator[str]:
             close()
 
 
-async def aiter_text(stream: AsyncIterable[Any]) -> AsyncIterator[str]:
-    """Yield the text deltas of an async chat or completion stream.
-
-    The async twin of :func:`iter_text`, for the native
-    :class:`~saia_python.aio.AsyncSSEStream` or the OpenAI SDK's async
-    stream. Raises :class:`~saia_python.APIError` on an error chunk, and
-    closes the stream when iteration ends.
-
-    Example::
-
-        stream = await aclient.completions.create(
-            model, "Once upon a time", max_tokens=64, stream=True
-        )
-        async for piece in aiter_text(stream):
-            print(piece, end="", flush=True)
-    """
+async def _aread_text(
+    stream: AsyncIterable[Any], seen: list[Any]
+) -> AsyncGenerator[str, None]:
+    """The async twin of :func:`_read_text`."""
     try:
         async for chunk in stream:
+            seen[0] = chunk
             text = _chunk_text(chunk)
             if text:
                 yield text
@@ -209,6 +303,128 @@ async def aiter_text(stream: AsyncIterable[Any]) -> AsyncIterator[str]:
             result = close()
             if inspect.isawaitable(result):
                 await result
+
+
+class TextIterator(Iterator[str]):
+    """The text pieces of a stream, as :func:`iter_text` returns them.
+
+    Iterate it as you would a generator. Along the way it keeps the last
+    chunk or event it read in :attr:`last`. SAIA sends the token counts in
+    a stream's last chunk, on all three routes (seen 2026-11-20), so
+    ``usage_of(text.last)`` reads them once the text is through.
+    """
+
+    def __init__(self, stream: Iterable[Any]) -> None:
+        # The generator gets a holder, not ``self``: with a reference cycle,
+        # an early ``break`` would leave the stream open until the garbage
+        # collector ran.
+        self._seen: list[Any] = [None]
+        self._pieces = _read_text(stream, self._seen)
+
+    @property
+    def last(self) -> Any:
+        """The last chunk or event read, as the stream gave it (a dict or an
+        SDK object), or ``None`` before the first one.
+
+        After a chat or completion stream, that is the final usage chunk;
+        after a Responses stream, the ``response.completed`` event, which
+        :func:`text_of` reads too. After an error, the chunk that reported it.
+        """
+        return self._seen[0]
+
+    def __next__(self) -> str:
+        return next(self._pieces)
+
+    def close(self) -> None:
+        """Stop reading and close the stream."""
+        self._pieces.close()
+
+
+class AsyncTextIterator(AsyncIterator[str]):
+    """The text pieces of an async stream, as :func:`aiter_text` returns them.
+
+    The async twin of :class:`TextIterator`, with the same :attr:`last`.
+    """
+
+    def __init__(self, stream: AsyncIterable[Any]) -> None:
+        self._seen: list[Any] = [None]
+        self._pieces = _aread_text(stream, self._seen)
+
+    @property
+    def last(self) -> Any:
+        """The last chunk or event read, or ``None`` before the first one."""
+        return self._seen[0]
+
+    async def __anext__(self) -> str:
+        return await self._pieces.__anext__()
+
+    async def aclose(self) -> None:
+        """Stop reading and close the stream."""
+        await self._pieces.aclose()
+
+
+def iter_text(stream: Iterable[Any]) -> TextIterator:
+    """Iterate over the text of a chat, completion or Responses API stream.
+
+    Accepts the native :class:`~saia_python.SSEStream` (dict chunks), the
+    OpenAI SDK's stream (chunk or event objects) or any iterable of chunks.
+    From chat and completion streams it yields the non-empty text of the
+    first choice only, so a stream with several choices (``n`` > 1, or a
+    list of prompts) is not interleaved; from a Responses stream, the
+    ``response.output_text.delta`` events. Role-only chunks, reasoning
+    deltas, usage chunks and lifecycle events are skipped. The stream is
+    closed when iteration ends, also when the consumer stops early.
+
+    Args:
+        stream: The stream to read.
+
+    Returns:
+        A :class:`~saia_python.TextIterator` over the text pieces, in order;
+        joined they give what :func:`text_of` reads from the complete
+        response. Afterwards its :attr:`~saia_python.TextIterator.last`
+        holds the stream's last chunk, the one with the token counts.
+
+    Raises:
+        APIError: While iterating, when a chunk reports an error (an error
+            chunk, an ``error`` event or ``response.failed``), which a
+            server sends when generation fails after the stream has begun.
+            ``response_body`` holds the chunk as JSON; ``status_code`` is
+            ``None``, since the HTTP response itself succeeded.
+
+    Example::
+
+        stream = client.completions.create(
+            model, "Once upon a time", max_tokens=64, stream=True
+        )
+        text = iter_text(stream)
+        for piece in text:
+            print(piece, end="", flush=True)
+        usage_of(text.last)  # the token counts, from the last chunk
+    """
+    return TextIterator(stream)
+
+
+def aiter_text(stream: AsyncIterable[Any]) -> AsyncTextIterator:
+    """Iterate over the text of an async chat, completion or Responses stream.
+
+    The async twin of :func:`iter_text`, for the native
+    :class:`~saia_python.aio.AsyncSSEStream` or the OpenAI SDK's async
+    stream. It returns an :class:`~saia_python.AsyncTextIterator`, with the
+    same :attr:`~saia_python.AsyncTextIterator.last`. Raises
+    :class:`~saia_python.APIError` on an error chunk, and closes the stream
+    when iteration ends.
+
+    Example::
+
+        stream = await aclient.completions.create(
+            model, "Once upon a time", max_tokens=64, stream=True
+        )
+        text = aiter_text(stream)
+        async for piece in text:
+            print(piece, end="", flush=True)
+        usage_of(text.last)
+    """
+    return AsyncTextIterator(stream)
 
 
 def _count(usage: dict, *keys: str) -> int | None:
@@ -223,11 +439,15 @@ def _count(usage: dict, *keys: str) -> int | None:
 def usage_of(response: Any) -> dict[str, int | None]:
     """Return a response's token counts as one dict.
 
-    Reads the ``usage`` of a chat, RAG or completion response (a native dict
-    or an SDK object), or of a stream's final usage chunk. Both spellings
-    map onto the same keys: ``prompt_tokens`` / ``completion_tokens`` (chat,
-    completions) and ``input_tokens`` / ``output_tokens``. ``total_tokens`` is
-    computed when the usage leaves it out.
+    Reads the ``usage`` of a chat, RAG, completion or Responses API response
+    (a native dict or an SDK object), of a chat or completion stream's final
+    usage chunk, or of a Responses stream's ``response.completed`` event;
+    after :func:`iter_text`, :attr:`TextIterator.last
+    <saia_python.TextIterator.last>` holds either.
+    Both spellings map onto the same keys: ``prompt_tokens`` /
+    ``completion_tokens`` (chat, completions) and ``input_tokens`` /
+    ``output_tokens`` (Responses API). ``total_tokens`` is computed when the
+    usage leaves it out.
 
     Args:
         response: A response dict or stream chunk, or an SDK object with
@@ -243,7 +463,7 @@ def usage_of(response: Any) -> dict[str, int | None]:
         usage_of(client.completions.create(model, "Hi", max_tokens=8))
         # {'input_tokens': 1, 'output_tokens': 8, 'total_tokens': 9}
     """
-    data = _as_dict(response)
+    data = _unwrap_event(_as_dict(response))
     usage = data.get("usage") if isinstance(data, dict) else None
     if not isinstance(usage, dict):
         usage = {}

@@ -24,6 +24,7 @@ from ._payloads import (
     arcana_chat_headers,
     build_chat_body,
     build_completion_body,
+    build_response_body,
 )
 from ._streaming import SSEStream
 from .arcana_references import (
@@ -54,7 +55,14 @@ from .exceptions import (
 )
 from .openai_compat import create_openai_client
 from .rate_limits import RateLimitInfo, format_rate_limit_error, parse_rate_limits
-from .responses import aiter_text, iter_text, text_of, usage_of
+from .responses import (
+    AsyncTextIterator,
+    TextIterator,
+    aiter_text,
+    iter_text,
+    text_of,
+    usage_of,
+)
 from .structured import parse_structured, response_format_for
 from .tokenizer import (
     DEFAULT_TOKENIZER_DIR,
@@ -114,6 +122,7 @@ __all__ = [
     # Request builders (pure — shared by sync, async, and external gateways)
     "build_chat_body",
     "build_completion_body",
+    "build_response_body",
     "apply_arcana_fields",
     "arcana_chat_headers",
     "INFERENCE_SERVICE",
@@ -121,6 +130,8 @@ __all__ = [
     "text_of",
     "iter_text",
     "aiter_text",
+    "TextIterator",
+    "AsyncTextIterator",
     "usage_of",
     "SSEStream",
     # Structured output (Pydantic v2 models)
@@ -179,6 +190,7 @@ _ASYNC_EXPORTS = frozenset(
         "AsyncSAIAClient",
         "AsyncChatService",
         "AsyncCompletionsService",
+        "AsyncResponsesService",
         "AsyncArcanaService",
         "AsyncModelsService",
     }

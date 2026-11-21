@@ -13,6 +13,7 @@ from saia_python import (
     arcana_chat_headers,
     build_chat_body,
     build_completion_body,
+    build_response_body,
 )
 
 
@@ -57,6 +58,34 @@ def test_build_completion_body_includes_set_knobs_and_merges_kwargs():
 def test_build_completion_body_passes_a_prompt_list_through():
     body = build_completion_body("m", ["a", "b"])
     assert body["prompt"] == ["a", "b"]
+
+
+def test_build_response_body_minimal_omits_none_knobs():
+    assert build_response_body("m", "Hi") == {"model": "m", "input": "Hi"}
+
+
+def test_build_response_body_includes_set_knobs_and_merges_kwargs():
+    tools = [{"type": "function", "name": "get_weather", "parameters": {}}]
+    body = build_response_body(
+        "m",
+        [{"role": "user", "content": "Hi"}],
+        instructions="Be brief.",
+        max_output_tokens=64,
+        temperature=0,
+        top_p=0.9,
+        tools=tools,
+        text={"format": {"type": "text"}},
+    )
+    assert body == {
+        "model": "m",
+        "input": [{"role": "user", "content": "Hi"}],
+        "instructions": "Be brief.",
+        "max_output_tokens": 64,
+        "temperature": 0,
+        "top_p": 0.9,
+        "tools": tools,
+        "text": {"format": {"type": "text"}},
+    }
 
 
 def test_apply_arcana_fields_returns_new_dict_and_leaves_input_unmutated():

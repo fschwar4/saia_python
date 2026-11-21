@@ -18,15 +18,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (seen 2026-11-20). `build_completion_body()` builds the request body for
   callers that send it themselves. The unit tests replay a response and a
   stream recorded from SAIA on 2026-11-20.
+- **Native `/responses` service (OpenAI's Responses API format).**
+  `client.responses.create(model, input, instructions=..., max_output_tokens=...)`
+  and its async twin use the same transport. As of 2026-11-20, GWDG's
+  documentation does not list the route, but it works (checked live that
+  day). Seen on 2026-11-19: it keeps no state (`previous_response_id` gets a
+  404, so send the whole conversation as `input`), supports tool calling and
+  an enforced `text.format` JSON schema, and ignores the ARCANA fields. When
+  `max_output_tokens` runs out, the response comes back `incomplete` with
+  the text so far. `build_response_body()` builds the request body. The unit
+  tests replay responses and streams recorded on 2026-11-20, a reasoning
+  model's among them.
 - **One set of helpers for native results and OpenAI SDK objects.**
-  `text_of()` now also reads `text_completion` responses and takes an SDK
-  object directly, without `.model_dump()`. The new `iter_text()` and
-  `aiter_text()` yield the text of a chat or completion stream, ours or the
-  SDK's. They keep to the first choice, skip the usage chunk, close the
-  stream when done, and raise `APIError` when a chunk reports an error
-  instead of ending as if the answer were complete. The new `usage_of()`
-  returns `input_tokens`, `output_tokens` and `total_tokens`, whichever
-  spelling the response uses.
+  `text_of()` now also reads `text_completion` responses and Responses API
+  objects (every `output_text` part of the message items, reasoning skipped,
+  like the SDK's `Response.output_text`), and takes an SDK object directly,
+  without `.model_dump()`. The new `iter_text()` and `aiter_text()` yield the
+  text of a chat, completion or Responses stream, ours or the SDK's. They
+  keep to the first choice, skip reasoning, usage chunks and lifecycle
+  events, close the stream when done, and raise `APIError` when a chunk
+  reports an error (including the Responses API's `error` and
+  `response.failed` events) instead of ending as if the answer were
+  complete. The new `usage_of()` returns `input_tokens`, `output_tokens` and
+  `total_tokens`, whichever spelling the response uses; on a Responses
+  stream it reads the final `response.completed` event. The iterator that
+  `iter_text()` and `aiter_text()` return keeps the last chunk it read in
+  `.last`. SAIA sends a stream's token counts in that chunk on all three
+  routes (seen 2026-11-20), so `usage_of(text.last)` reads them once the
+  text has streamed.
 - **Tokenizer catalogue: four more GWDG models** — `eurollm-22b-instruct-2512`,
   `deepseek-v4.1-flash-1017`, `glm-5.3` and `mistral-large-4-1t-a52b` now
   resolve to their Hugging Face repositories. All four are in GWDG's live
@@ -58,9 +77,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   generically. Notebook kernel metadata uses `Python 3`.
 - **The shared transport has a route-neutral name.** `post_chat_completion`
   and `apost_chat_completion` are now `post_generation` and
-  `apost_generation`, since `/completions` uses them too. The old names stay
+  `apost_generation`, since `/completions` and `/responses` use them too.
+  The old names stay
   as aliases, without a deprecation warning, and `saia_python.aio` exports
   both.
+- **`text_of()` logs a tool call at DEBUG, not as a warning.** In a tool loop
+  a response that calls a tool instead of answering is the expected answer,
+  yet each one logged a warning (`first choice has empty content;
+  finish_reason='tool_calls'`), which Python prints to stderr even without a
+  logging setup. Now it logs `text_of: no text, the response calls
+  get_weather` at DEBUG, for chat and Responses API objects alike. A
+  truncated tool call (`finish_reason: "length"`, `status: "incomplete"`) and
+  every other empty answer keep the warning.
 
 ### Fixed
 
