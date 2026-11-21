@@ -17,6 +17,7 @@ from saia_python import (
     TextIterator,
     aiter_text,
     iter_text,
+    parse_arcana_references,
     text_of,
     usage_of,
 )
@@ -765,3 +766,99 @@ def test_aiter_text_aclose_stops_reading_and_closes_the_stream():
 
     assert asyncio.run(_run()) == ("a", [])
     assert closed == [True]
+
+
+# --- ARCANA answers: references=True ---------------------------------------------
+
+_ARCANA_ANSWER = (
+    "The first option is preferred [RREF1], with details in [RREF2, RREF3].\n\n"
+    "-----\n"
+    "References:\n\n"
+    "[RREF1] doc-a.md (0.21)\nChunk body...\n"
+    "[RREF2] doc-b.md (0.30)\nChunk body...\n"
+    "[RREF3] doc-a.md (0.33)\nChunk body...\n"
+)
+
+
+def _arcana_chunks(size=5):
+    """The ARCANA answer as chat chunks of ``size`` characters, then usage."""
+    text = _ARCANA_ANSWER
+    pieces = [text[i : i + size] for i in range(0, len(text), size)]
+    usage = {
+        "object": "chat.completion.chunk",
+        "choices": [],
+        "usage": {"total_tokens": 99},
+    }
+    return (
+        [_chat_chunk(role="assistant", content="")]
+        + [_chat_chunk(piece) for piece in pieces]
+        + [usage]
+    )
+
+
+def test_iter_text_with_references_streams_the_answer_without_the_block():
+    expected = parse_arcana_references(_ARCANA_ANSWER)
+    text = iter_text(_arcana_chunks(), references=True)
+    assert text.references is None  # until the stream is through
+    pieces = list(text)
+    assert "".join(pieces) == expected.answer  # no block, no rule under it
+    assert "".join(pieces).endswith("[RREF2, RREF3].")
+    assert any("[RREF2, RREF3]" in piece for piece in pieces)
+    assert text.references == expected
+    assert text.references.by_number[3].filename == "doc-a.md"
+    assert usage_of(text.last)["total_tokens"] == 99
+
+
+def test_iter_text_with_references_can_keep_the_separator():
+    expected = parse_arcana_references(_ARCANA_ANSWER)
+    text = iter_text(_arcana_chunks(), references=True, strip_separator=False)
+    assert "".join(text) == expected.prose == expected.answer + "\n\n-----"
+
+
+def test_iter_text_yields_the_block_and_keeps_no_references_by_default():
+    text = iter_text(_arcana_chunks())
+    assert "".join(text) == _ARCANA_ANSWER
+    assert text.references is None
+
+
+def test_iter_text_keeps_no_references_when_the_stream_fails():
+    text = iter_text(
+        [_chat_chunk("partial"), {"error": {"message": "x"}}], references=True
+    )
+    with pytest.raises(APIError):
+        list(text)
+    assert text.references is None
+
+
+def test_iter_text_with_references_yields_held_back_text_at_the_end():
+    # No References block: the trailing newline might have started one, so it
+    # waits, and comes out once the stream has ended.
+    text = iter_text([_chat_chunk("No retrieval.\n")], references=True)
+    assert list(text) == ["No retrieval.", "\n"]
+    assert text.references.matched is False
+
+    async def _chunks():
+        yield _chat_chunk("see [RREF")
+
+    async def _run():
+        text = aiter_text(_chunks(), references=True)
+        return [piece async for piece in text], text.references
+
+    pieces, references = asyncio.run(_run())
+    assert pieces == ["see ", "[RREF"]
+    assert references.prose == "see [RREF"
+
+
+def test_aiter_text_with_references_streams_the_answer_without_the_block():
+    async def _chunks():
+        for chunk in _arcana_chunks(size=3):
+            yield chunk
+
+    async def _run():
+        text = aiter_text(_chunks(), references=True)
+        return "".join([piece async for piece in text]), text.references
+
+    joined, references = asyncio.run(_run())
+    expected = parse_arcana_references(_ARCANA_ANSWER)
+    assert joined == expected.answer
+    assert references == expected

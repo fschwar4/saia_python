@@ -38,8 +38,11 @@ in only via the optional `[async]` extra.
   there is no retry loop; reasoning models need `max_tokens` headroom. Pydantic
   is imported lazily, never at package import. To re-check:
   `SAIA_STRUCTURED_LIVE=1 pytest tests/test_live_structured.py`.
-- **`arcana_references.py`** — the GWDG ARCANA reference-citation grammar;
-  consumed by downstream RAG adapters. Treat its public shape as an API contract.
+- **`arcana_references.py`** — the GWDG ARCANA reference-citation grammar, for
+  complete answers and streams (`ReferencesSplitter`); consumed by downstream
+  RAG adapters. Treat its public shape as an API contract: add, never change
+  (derived data as read-only properties, new data as fields with a default
+  at the end).
 - **`tokenizer.py`** — tiktoken-based token counting (`[test]`/`dev` pull tiktoken).
 - API key is auto-discovered from `SAIA_API_KEY` env → `.saia_api` → `.env`
   (all gitignored). **Never** hardcode or print a key.

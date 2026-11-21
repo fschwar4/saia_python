@@ -14,7 +14,7 @@ the native dicts and the OpenAI SDK's objects alike.
 .. autofunction:: saia_python.usage_of
 
 .. autoclass:: saia_python.TextIterator
-   :members: last, close
+   :members: last, references, close
 
 .. autoclass:: saia_python.AsyncTextIterator
-   :members: last, aclose
+   :members: last, references, aclose

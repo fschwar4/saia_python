@@ -37,6 +37,7 @@ from collections.abc import (
 )
 from typing import Any
 
+from .arcana_references import ParsedReferences, ReferencesSplitter
 from .exceptions import APIError
 
 log = logging.getLogger(__name__)
@@ -273,14 +274,48 @@ def _chunk_text(chunk: Any) -> str | None:
     return None
 
 
-def _read_text(stream: Iterable[Any], seen: list[Any]) -> Generator[str, None, None]:
-    """Yield the text of each chunk of ``stream``, noting the chunk in ``seen``."""
+class _ReadState:
+    """What a reading generator reports back to its iterator.
+
+    A separate object, so the generator holds no reference to the iterator:
+    with that cycle, an early ``break`` would leave the stream open until
+    the garbage collector ran.
+    """
+
+    def __init__(self, references: bool, strip_separator: bool) -> None:
+        self.last: Any = None
+        self.references: ParsedReferences | None = None
+        self._splitter = (
+            ReferencesSplitter(strip_separator=strip_separator) if references else None
+        )
+
+    def text(self, chunk: Any) -> str | None:
+        """Note ``chunk`` as the last one; return the text to yield from it."""
+        self.last = chunk
+        text = _chunk_text(chunk)
+        if text and self._splitter is not None:
+            return self._splitter.feed(text)
+        return text
+
+    def finish(self) -> str:
+        """The stream has ended: return held-back text, keep the references."""
+        if self._splitter is None:
+            return ""
+        tail = self._splitter.flush()
+        self.references = self._splitter.result
+        return tail
+
+
+def _read_text(stream: Iterable[Any], state: _ReadState) -> Generator[str, None, None]:
+    """Yield the text of ``stream``'s chunks, reporting to ``state``."""
     try:
         for chunk in stream:
-            seen[0] = chunk
-            text = _chunk_text(chunk)
+            text = state.text(chunk)
             if text:
                 yield text
+        tail = state.finish()
+        if tail:
+            yield tail
     finally:
         close = getattr(stream, "close", None)
         if callable(close):
@@ -288,15 +323,17 @@ def _read_text(stream: Iterable[Any], seen: list[Any]) -> Generator[str, None, N
 
 
 async def _aread_text(
-    stream: AsyncIterable[Any], seen: list[Any]
+    stream: AsyncIterable[Any], state: _ReadState
 ) -> AsyncGenerator[str, None]:
     """The async twin of :func:`_read_text`."""
     try:
         async for chunk in stream:
-            seen[0] = chunk
-            text = _chunk_text(chunk)
+            text = state.text(chunk)
             if text:
                 yield text
+        tail = state.finish()
+        if tail:
+            yield tail
     finally:
         close = getattr(stream, "aclose", None) or getattr(stream, "close", None)
         if callable(close):
@@ -314,12 +351,15 @@ class TextIterator(Iterator[str]):
     ``usage_of(text.last)`` reads them once the text is through.
     """
 
-    def __init__(self, stream: Iterable[Any]) -> None:
-        # The generator gets a holder, not ``self``: with a reference cycle,
-        # an early ``break`` would leave the stream open until the garbage
-        # collector ran.
-        self._seen: list[Any] = [None]
-        self._pieces = _read_text(stream, self._seen)
+    def __init__(
+        self,
+        stream: Iterable[Any],
+        *,
+        references: bool = False,
+        strip_separator: bool = True,
+    ) -> None:
+        self._state = _ReadState(references, strip_separator)
+        self._pieces = _read_text(stream, self._state)
 
     @property
     def last(self) -> Any:
@@ -330,7 +370,21 @@ class TextIterator(Iterator[str]):
         after a Responses stream, the ``response.completed`` event, which
         :func:`text_of` reads too. After an error, the chunk that reported it.
         """
-        return self._seen[0]
+        return self._state.last
+
+    @property
+    def references(self) -> ParsedReferences | None:
+        """With ``references=True``, the ARCANA answer's References block,
+        parsed, once the stream has been read to its end; else ``None``.
+
+        It is the :class:`~saia_python.arcana_references.ParsedReferences`
+        that :func:`~saia_python.arcana_references.parse_arcana_references`
+        gives for the complete answer, with ``answer``, ``separator``,
+        ``references``, ``anchors``, ``by_number`` and ``dangling``. The
+        pieces joined give its ``answer`` (its ``prose`` with
+        ``strip_separator=False``).
+        """
+        return self._state.references
 
     def __next__(self) -> str:
         return next(self._pieces)
@@ -343,17 +397,30 @@ class TextIterator(Iterator[str]):
 class AsyncTextIterator(AsyncIterator[str]):
     """The text pieces of an async stream, as :func:`aiter_text` returns them.
 
-    The async twin of :class:`TextIterator`, with the same :attr:`last`.
+    The async twin of :class:`TextIterator`, with the same :attr:`last` and
+    :attr:`references`.
     """
 
-    def __init__(self, stream: AsyncIterable[Any]) -> None:
-        self._seen: list[Any] = [None]
-        self._pieces = _aread_text(stream, self._seen)
+    def __init__(
+        self,
+        stream: AsyncIterable[Any],
+        *,
+        references: bool = False,
+        strip_separator: bool = True,
+    ) -> None:
+        self._state = _ReadState(references, strip_separator)
+        self._pieces = _aread_text(stream, self._state)
 
     @property
     def last(self) -> Any:
         """The last chunk or event read, or ``None`` before the first one."""
-        return self._seen[0]
+        return self._state.last
+
+    @property
+    def references(self) -> ParsedReferences | None:
+        """With ``references=True``, the parsed References block once the
+        stream has been read to its end; else ``None``."""
+        return self._state.references
 
     async def __anext__(self) -> str:
         return await self._pieces.__anext__()
@@ -363,7 +430,9 @@ class AsyncTextIterator(AsyncIterator[str]):
         await self._pieces.aclose()
 
 
-def iter_text(stream: Iterable[Any]) -> TextIterator:
+def iter_text(
+    stream: Iterable[Any], *, references: bool = False, strip_separator: bool = True
+) -> TextIterator:
     """Iterate over the text of a chat, completion or Responses API stream.
 
     Accepts the native :class:`~saia_python.SSEStream` (dict chunks), the
@@ -377,12 +446,26 @@ def iter_text(stream: Iterable[Any]) -> TextIterator:
 
     Args:
         stream: The stream to read.
+        references: Read the stream as an ARCANA answer: GWDG's
+            ``References:`` block is held back instead of yielded, an
+            anchor such as ``[RREF2]`` is never split between two pieces,
+            and once the stream is through,
+            :attr:`~saia_python.TextIterator.references` holds the parsed
+            block. Text waits only while it could still be the start of the
+            block or of an anchor (see
+            :class:`~saia_python.arcana_references.ReferencesSplitter`).
+        strip_separator: With ``references=True``, also leave out the
+            horizontal rule GWDG puts under the answer's last line, which
+            Markdown would render as a heading underline. ``False`` yields
+            it too.
 
     Returns:
         A :class:`~saia_python.TextIterator` over the text pieces, in order;
         joined they give what :func:`text_of` reads from the complete
-        response. Afterwards its :attr:`~saia_python.TextIterator.last`
-        holds the stream's last chunk, the one with the token counts.
+        response (with ``references=True``: its ``answer``, without the
+        References block).
+        Afterwards its :attr:`~saia_python.TextIterator.last` holds the
+        stream's last chunk, the one with the token counts.
 
     Raises:
         APIError: While iterating, when a chunk reports an error (an error
@@ -400,19 +483,34 @@ def iter_text(stream: Iterable[Any]) -> TextIterator:
         for piece in text:
             print(piece, end="", flush=True)
         usage_of(text.last)  # the token counts, from the last chunk
+
+    A streamed ARCANA answer, without GWDG's verbose References block::
+
+        stream = client.arcana.chat(model, messages, arcana_id, stream=True)
+        text = iter_text(stream, references=True)
+        for piece in text:
+            print(piece, end="", flush=True)
+        for ref in text.references.references:
+            print(ref.n, ref.filename)
     """
-    return TextIterator(stream)
+    return TextIterator(stream, references=references, strip_separator=strip_separator)
 
 
-def aiter_text(stream: AsyncIterable[Any]) -> AsyncTextIterator:
+def aiter_text(
+    stream: AsyncIterable[Any],
+    *,
+    references: bool = False,
+    strip_separator: bool = True,
+) -> AsyncTextIterator:
     """Iterate over the text of an async chat, completion or Responses stream.
 
-    The async twin of :func:`iter_text`, for the native
+    The async twin of :func:`iter_text`, with the same options, for the native
     :class:`~saia_python.aio.AsyncSSEStream` or the OpenAI SDK's async
     stream. It returns an :class:`~saia_python.AsyncTextIterator`, with the
-    same :attr:`~saia_python.AsyncTextIterator.last`. Raises
-    :class:`~saia_python.APIError` on an error chunk, and closes the stream
-    when iteration ends.
+    same :attr:`~saia_python.AsyncTextIterator.last` and, with
+    ``references=True``, :attr:`~saia_python.AsyncTextIterator.references`.
+    Raises :class:`~saia_python.APIError` on an error chunk, and closes the
+    stream when iteration ends.
 
     Example::
 
@@ -424,7 +522,9 @@ def aiter_text(stream: AsyncIterable[Any]) -> AsyncTextIterator:
             print(piece, end="", flush=True)
         usage_of(text.last)
     """
-    return AsyncTextIterator(stream)
+    return AsyncTextIterator(
+        stream, references=references, strip_separator=strip_separator
+    )
 
 
 def _count(usage: dict, *keys: str) -> int | None:

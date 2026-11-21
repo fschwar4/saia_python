@@ -46,6 +46,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.last`. SAIA sends a stream's token counts in that chunk on all three
   routes (seen 2026-11-20), so `usage_of(text.last)` reads them once the
   text has streamed.
+- **Streaming ARCANA answers, with anchors that resolve.**
+  `iter_text(stream, references=True)` (and `aiter_text`) streams an ARCANA
+  answer without GWDG's verbose `References:` block, and without the
+  horizontal rule GWDG puts right under the answer's last line, which
+  Markdown would render as a heading underline (`strip_separator=False`
+  keeps the rule). Once the stream is through, `text.references` holds the
+  parsed block: the same `ParsedReferences` that `parse_arcana_references()`
+  gives for the complete answer. Underneath, the new `ReferencesSplitter`
+  works on plain text deltas (`feed()`, `flush()`, `result`), so a proxy
+  that rewrites raw SSE lines can use it as well. It holds text back only
+  while it could still become the marker, the rule or an anchor, so the
+  answer streams without a fixed delay, and it never splits an anchor such
+  as `[RREF2]` or `[RREF2, RREF5]` between two pieces. `ParsedReferences`
+  keeps its fields and gains read-only properties: `answer` and `separator`
+  split the prose, so `answer + separator + references_block` is the whole
+  content; `anchors` lists the numbers the prose cites; `by_number` maps
+  every number in the block to its own entry, with its own distance and
+  page; `dangling` lists cited numbers the block does not have, a hint at a
+  made-up citation. `split_compound_anchors()` rewrites `[RREF2, RREF5]` as
+  `[RREF2] [RREF5]`, and `REFERENCES_ANCHOR_RE` matches both forms.
 - **Tokenizer catalogue: four more GWDG models** — `eurollm-22b-instruct-2512`,
   `deepseek-v4.1-flash-1017`, `glm-5.3` and `mistral-large-4-1t-a52b` now
   resolve to their Hugging Face repositories. All four are in GWDG's live
@@ -92,6 +112,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **ARCANA references from PDF sources are parsed.** GWDG lists a PDF chunk
+  as `[RREF1] <name>.pdf p.21,y:413 (0.688)`, with the page and the position
+  on it (seen 2026-11-21). `REFERENCES_ENTRY_RE` accepted only
+  `<name>.md (<distance>)`, so `parse_arcana_references()` found no
+  references at all in such an answer. It now takes any file type, file
+  names with spaces and the optional position, which `ArcanaReference` keeps
+  in the new fields `page` and `y` (`None` for markdown sources). Markdown
+  entries parse as before.
 - **Rate-limit data is back, and the 429 retry waits as long as SAIA asks.**
   SAIA's gateway now sends `x-ratelimit-{limit,remaining,reset}-requests-{10s,hour,day}`
   and, on a 429, `Retry-After` (seen 2026-11-19). saia-python knew only the

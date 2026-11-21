@@ -30,9 +30,11 @@ from ._streaming import SSEStream
 from .arcana_references import (
     ArcanaReference,
     ParsedReferences,
+    ReferencesSplitter,
     is_arcana_event,
     parse_arcana_references,
     parse_reference_entries,
+    split_compound_anchors,
 )
 from .auth import (
     DEFAULT_BASE_URL,
@@ -140,8 +142,10 @@ __all__ = [
     # ARCANA reference parsing
     "ArcanaReference",
     "ParsedReferences",
+    "ReferencesSplitter",
     "parse_arcana_references",
     "parse_reference_entries",
+    "split_compound_anchors",
     "is_arcana_event",
     # Tokenizers ([tokenizer] extra)
     "GWDG_MODEL_REPOS",
