@@ -119,6 +119,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SAIA's rate-limit headers no longer parse. The unit tests of the normal path
   (chat, streaming, the async transport) now use headers recorded from SAIA on
   2026-11-19, so a renamed header fails a test there too.
+- **Live checks for the native routes**, opt-in:
+  `SAIA_COMPLETIONS_LIVE=1 pytest tests/test_live_completions_route.py` and
+  `SAIA_MESSAGES_LIVE=1 pytest tests/test_live_messages_route.py` call the
+  native services against SAIA, plain and streamed, and check the response
+  shape, how the stream ends and what `text_of()` reads. The `/responses`
+  check (`SAIA_RESPONSES_LIVE`) now does the same through
+  `client.responses.create()`, next to its raw request. None of them runs in
+  CI.
 
 ### Changed
 
