@@ -38,7 +38,7 @@ print(client.models.list_ids())
 
 # Chat completion
 response = client.chat.completions.create(
-    model="meta-llama-3.1-8b-instruct",
+    model="qwen3-30b-a3b-instruct-2507",
     messages=[{"role": "user", "content": "Hello!"}],
 )
 print(response["choices"][0]["message"]["content"])
@@ -53,7 +53,7 @@ All services are also available as standalone functions:
 from saia_python import list_model_ids, chat_completion
 
 list_model_ids()
-chat_completion(model="meta-llama-3.1-8b-instruct", messages=[...])
+chat_completion(model="qwen3-30b-a3b-instruct-2507", messages=[...])
 ```
 
 ### Completions, Responses and Messages
@@ -106,7 +106,7 @@ async def main():
 
         # Streaming plain chat — retry=False fails fast with an informative 429
         stream = await client.chat.completions.create(
-            model="meta-llama-3.1-8b-instruct",
+            model="qwen3-30b-a3b-instruct-2507",
             messages=[{"role": "user", "content": "Hello!"}],
             stream=True,
             retry=False,

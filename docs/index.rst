@@ -72,7 +72,7 @@ Minimal example
    print(client.models.list_ids())
 
    response = client.chat.completions.create(
-       model="meta-llama-3.1-8b-instruct",
+       model="qwen3-30b-a3b-instruct-2507",
        messages=[{"role": "user", "content": "Hello!"}],
    )
    print(response["choices"][0]["message"]["content"])

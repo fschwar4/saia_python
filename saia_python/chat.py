@@ -53,7 +53,7 @@ class ChatCompletions:
         :attr:`~saia_python.TextIterator.usage` holds the counts.
 
         Args:
-            model: Model identifier (e.g. ``"meta-llama-3.1-8b-instruct"``).
+            model: Model identifier (e.g. ``"qwen3-30b-a3b-instruct-2507"``).
             messages: List of message dicts with ``"role"`` and ``"content"`` keys.
             temperature: Sampling temperature (0–2).
             top_p: Nucleus sampling parameter (0–1).
@@ -162,7 +162,7 @@ class ChatService:
         around :meth:`completions.create <ChatCompletions.create>` yourself.
 
         Args:
-            model: Model identifier (e.g. ``"meta-llama-3.1-8b-instruct"``).
+            model: Model identifier (e.g. ``"qwen3-30b-a3b-instruct-2507"``).
             messages: List of message dicts with ``"role"`` and ``"content"`` keys.
                 SAIA uses the schema only to constrain the output and does not
                 add it to the prompt, so say what each field should hold.

@@ -174,6 +174,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   table in the docs called it not available. Through the OpenAI SDK it works
   with `model="flux"`, a model `/models` does not list, and the image comes
   back as base64 only, never as a URL (checked 2026-11-22).
+- **The chat examples send `meta-llama-3.1-8b-instruct` no conversation
+  without a system message any more.** For that model, SAIA's prompt
+  template adds a default system prompt about tool calling whenever a
+  request has none, so the model may answer as if it had tools (seen
+  2026-11-22). The examples in the README, the docs, the docstrings and the
+  example notebooks that sent no system message now use
+  `qwen3-30b-a3b-instruct-2507`. The Quickstart notes that a system message
+  avoids the effect: on chat even an empty one, while `/messages` and
+  `/responses` drop an empty `system` or `instructions`. The `/messages`
+  live check sends one.
 - **ARCANA references from PDF sources are parsed.** GWDG lists a PDF chunk
   as `[RREF1] <name>.pdf p.21,y:413 (0.688)`, with the page and the position
   on it (seen 2026-11-21). `REFERENCES_ENTRY_RE` accepted only

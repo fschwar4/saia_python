@@ -103,13 +103,13 @@ OOP Interface
 
    # Chat completion
    client.chat.completions.create(
-       model="meta-llama-3.1-8b-instruct",
+       model="qwen3-30b-a3b-instruct-2507",
        messages=[{"role": "user", "content": "Hello!"}],
    )
 
    # Streaming
    for chunk in client.chat.completions.create(
-       model="meta-llama-3.1-8b-instruct",
+       model="qwen3-30b-a3b-instruct-2507",
        messages=[{"role": "user", "content": "Count to 5."}],
        stream=True,
    ):
@@ -177,6 +177,17 @@ through the SDK only adds ``openai.``, as in
 Integration`_). The older form without ``.create``,
 ``client.chat.completions(...)``, does the same and keeps working.
 
+.. note::
+
+   With ``meta-llama-3.1-8b-instruct``, send a system message. Without one,
+   SAIA's prompt template for this model adds a default system prompt about
+   tool calling, and the model may answer as if it had tools (seen
+   2026-11-22). On chat an empty system message suffices
+   (``{"role": "system", "content": ""}``). On ``/messages`` and
+   ``/responses`` an empty ``system`` or ``instructions`` is dropped, so give
+   it some text there. That is why the chat examples here use
+   ``qwen3-30b-a3b-instruct-2507``, which is not affected.
+
 
 Tool Use (Function Calling)
 ---------------------------
@@ -243,7 +254,7 @@ write tokens that fit the schema — so the answer parses without a retry loop:
        confidence: float
 
    result = client.chat.completions_structured(
-       model="meta-llama-3.1-8b-instruct",
+       model="qwen3-30b-a3b-instruct-2507",
        messages=[{"role": "user", "content": "Sentiment of: 'The update broke my build.'"}],
        response_model=Sentiment,
    )
@@ -281,7 +292,7 @@ too (e.g. its ``usage``), use the two helpers it is built from:
    from saia_python import parse_structured, response_format_for
 
    response = client.chat.completions.create(
-       model="meta-llama-3.1-8b-instruct",
+       model="qwen3-30b-a3b-instruct-2507",
        messages=[...],
        response_format=response_format_for(Sentiment),
    )
@@ -444,7 +455,7 @@ automatically when omitted:
    list_model_ids()
 
    chat_completion(
-       model="meta-llama-3.1-8b-instruct",
+       model="qwen3-30b-a3b-instruct-2507",
        messages=[{"role": "user", "content": "Hello!"}],
    )
 

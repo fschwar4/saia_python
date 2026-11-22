@@ -24,9 +24,11 @@ import pytest
 from saia_python import RateLimitError, SAIAClient, iter_text, text_of, usage_of
 
 MODEL = os.environ.get("SAIA_MESSAGES_LIVE_MODEL", "meta-llama-3.1-8b-instruct")
-MESSAGES = [
-    {"role": "user", "content": "What is the capital of France? Answer in one word."}
-]
+MESSAGES = [{"role": "user", "content": "What is the capital of France?"}]
+# A system prompt also keeps meta-llama-3.1-8b-instruct from getting SAIA's
+# default tool-calling prompt, which its template adds when there is none
+# (seen 2026-11-22).
+SYSTEM = "Answer in one word."
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("SAIA_MESSAGES_LIVE"),
@@ -45,7 +47,7 @@ def _counted(usage: dict) -> bool:
 def test_live_message_is_an_anthropic_message():
     try:
         result = SAIAClient().messages.create(
-            MODEL, MESSAGES, 16, temperature=0, retry=False
+            MODEL, MESSAGES, 16, system=SYSTEM, temperature=0, retry=False
         )
     except RateLimitError:
         pytest.skip("rate-limited (HTTP 429); cannot tell whether the route works")
@@ -62,7 +64,13 @@ def test_live_message_is_an_anthropic_message():
 def test_live_message_stream_ends_with_message_stop():
     try:
         stream = SAIAClient().messages.create(
-            MODEL, MESSAGES, 16, temperature=0, stream=True, retry=False
+            MODEL,
+            MESSAGES,
+            16,
+            system=SYSTEM,
+            temperature=0,
+            stream=True,
+            retry=False,
         )
         text = iter_text(stream)
         pieces = list(text)
