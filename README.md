@@ -215,8 +215,10 @@ python3 -m http.server 8000 --directory docs/_build/html
 
 If you use `saia-python` in your work, please cite it. Citation metadata lives in
 [`CITATION.cff`](https://github.com/fschwar4/saia_python/blob/main/CITATION.cff); GitHub's "Cite this repository" button renders it
-as APA or BibTeX. A Zenodo DOI will be added here once the first release is
-archived.
+as APA or BibTeX. The Zenodo concept DOI
+[10.5281/zenodo.20480724](https://doi.org/10.5281/zenodo.20480724) always
+resolves to the latest release; `CITATION.cff` also lists the DOI of each
+release.
 
 ## License
 
