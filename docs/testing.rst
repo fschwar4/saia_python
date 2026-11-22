@@ -243,14 +243,29 @@ Live Checks
 -----------
 
 A few checks run against the real service and are skipped unless their
-environment variable is set. These three need an API key and count against your
-rate limits:
+environment variable is set. These need an API key and count against your rate
+limits:
 
 .. code-block:: bash
 
+   SAIA_COMPLETIONS_LIVE=1 pytest tests/test_live_completions_route.py
+   SAIA_MESSAGES_LIVE=1 pytest tests/test_live_messages_route.py
    SAIA_RATE_LIMITS_LIVE=1 pytest tests/test_live_rate_limits.py
    SAIA_RESPONSES_LIVE=1 pytest tests/test_live_responses_route.py
    SAIA_STRUCTURED_LIVE=1 pytest tests/test_live_structured.py
+
+The three route checks call the native service, plain and streamed, and check
+the response shape, how the stream ends and what ``text_of`` reads. As of
+2026-11-22, GWDG's documentation lists neither ``/responses`` nor
+``/messages``, so these checks are what notices a change there
+(:doc:`ADR-0008 <adr/0008-native-wrappers-for-undocumented-routes>`). Run them
+before a release; together they send seven requests:
+
+.. code-block:: bash
+
+   SAIA_COMPLETIONS_LIVE=1 SAIA_RESPONSES_LIVE=1 SAIA_MESSAGES_LIVE=1 \
+       pytest tests/test_live_completions_route.py \
+       tests/test_live_responses_route.py tests/test_live_messages_route.py
 
 The tokenizer smoke test downloads a tokenizer from Hugging Face instead and
 needs the ``[tokenizer]`` extra:

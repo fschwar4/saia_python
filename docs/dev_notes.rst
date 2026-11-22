@@ -124,9 +124,10 @@ The established release flow (assumes the one-time setup above is done).
 Publishing to PyPI happens through the **Publish** workflow on a GitHub
 Release — no manual upload to PyPI and no stored token.
 
-1. **Bump the version** in ``pyproject.toml`` and update
-   ``docs/CHANGELOG.md`` — promote the ``[Unreleased]`` entries into a dated
-   ``[X.Y.Z]`` section and update the compare links at the bottom.
+1. **Bump the version** in ``pyproject.toml`` and in ``CITATION.cff``
+   (``version`` and ``date-released``), and update ``docs/CHANGELOG.md`` —
+   promote the ``[Unreleased]`` entries into a dated ``[X.Y.Z]`` section and
+   update the compare links at the bottom.
 
 2. **Check locally** (CI enforces the same):
 
@@ -138,6 +139,10 @@ Release — no manual upload to PyPI and no stored token.
       pytest --cov=saia_python
       sphinx-build -b html -W docs docs/_build/html
       python -m build && twine check --strict dist/*
+
+   With an API key, also run the live checks from :doc:`testing` (Live
+   Checks). CI cannot run them, and they are what notices a change to the
+   routes GWDG does not document.
 
 3. *(Optional)* **TestPyPI dry-run** — preview the upload and rendered
    metadata before the real release. TestPyPI versions are immutable, so use a

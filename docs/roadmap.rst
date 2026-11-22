@@ -75,7 +75,7 @@ common case without it, because SAIA enforces the schema while generating. This
 item is about checking instructor out and deciding whether it earns a place —
 it is not a plan to build on it. Anything that comes of it would be an
 additional, opt-in option, just as structured output is: the plain
-``completions()`` workflow stays as it is, and instructor would sit next to
+``completions.create()`` workflow stays as it is, and instructor would sit next to
 ``completions_structured()`` rather than replace it.
 
 **Status — to evaluate (no implementation planned)**:

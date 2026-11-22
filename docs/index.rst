@@ -2,8 +2,8 @@ SAIA Python Wrapper
 ===================
 
 A Python wrapper for the `GWDG SAIA platform <https://docs.hpc.gwdg.de/services/ai-services/saia/index.html>`_ REST API,
-providing object-oriented and functional interfaces to Chat AI, Voice AI,
-ARCANA (RAG), and document conversion services.
+providing object-oriented and functional interfaces to Chat AI and SAIA's other
+text-generation routes, Voice AI, ARCANA (RAG), and document conversion services.
 
 .. grid:: 2
    :gutter: 3
@@ -50,6 +50,9 @@ Wrapped Services
 ----------------
 
 - `Chat AI <https://docs.hpc.gwdg.de/services/ai-services/chat-ai/index.html>`_ — chat completions with streaming, tool calling, and structured output (Pydantic)
+- `Completions <https://docs.hpc.gwdg.de/services/ai-services/saia/index.html>`_ — raw-text completion on ``/completions``: the model continues a prompt, without a chat template
+- Responses API — OpenAI's Responses format on ``/responses``, stateless; not in GWDG's documentation (seen 2026-11-22), see :doc:`implementation`
+- Messages API — Anthropic's Messages format on ``/messages``, without the Anthropic SDK; not in GWDG's documentation (seen 2026-11-22), see :doc:`implementation`
 - `Voice AI <https://docs.hpc.gwdg.de/services/ai-services/voice-ai/index.html>`_ — audio transcription and translation (Whisper)
 - `ARCANA <https://docs.hpc.gwdg.de/services/ai-services/arcana/index.html>`_ — RAG: knowledge base management and retrieval-augmented chat
 - `Documents (Docling) <https://docs.hpc.gwdg.de/services/ai-services/saia/index.html>`_ — PDF and document conversion to Markdown, HTML, JSON

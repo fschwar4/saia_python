@@ -293,6 +293,59 @@ client.chat.completions_structured(...)``), and the OpenAI SDK route works too:
 ``client.openai.chat.completions.parse(..., response_format=Sentiment)``.
 
 
+Completions, Responses and Messages
+-----------------------------------
+
+Besides chat, SAIA answers on three more routes that generate text. Each native
+call is named as in the vendor SDK, returns a dict like chat does, and has an
+async twin on ``AsyncSAIAClient``:
+
+.. code-block:: python
+
+   from saia_python import iter_text, text_of, usage_of
+
+   model = "qwen3-30b-a3b-instruct-2507"
+
+   # /completions: the model continues the prompt verbatim, without a chat
+   # template. Set max_tokens; without it SAIA stops after 16 tokens.
+   completion = client.completions.create(model, "Once upon a time", max_tokens=64)
+
+   # /responses: OpenAI's Responses format. It keeps no state, so send the
+   # whole conversation as an input list.
+   response = client.responses.create(
+       model,
+       [{"role": "user", "content": "Name a colour."}],
+       instructions="Answer in one word.",
+       max_output_tokens=16,
+   )
+
+   # /messages: Anthropic's Messages format; max_tokens is required.
+   message = client.messages.create(
+       model,
+       [{"role": "user", "content": "Name a colour."}],
+       max_tokens=256,
+       system="Answer in one word.",
+   )
+
+   for result in (completion, response, message):
+       print(text_of(result), usage_of(result))
+
+   # iter_text yields the text of any route's stream and keeps the counts.
+   text = iter_text(client.messages.create(
+       model, [{"role": "user", "content": "Name three colours."}], max_tokens=64, stream=True,
+   ))
+   for piece in text:
+       print(piece, end="")
+   print(text.usage)
+
+The first two routes also work through the OpenAI SDK, as
+``client.openai.completions.create(...)`` and
+``client.openai.responses.create(...)``, and ``text_of`` reads those results
+too. As of 2026-11-22, GWDG's documentation lists neither ``/responses`` nor
+``/messages``; both work (checked live that day). :doc:`implementation` lists
+what works on each route and what the stateless ``/responses`` cannot do.
+
+
 OpenAI SDK Integration
 ----------------------
 

@@ -14,21 +14,37 @@ Repository Layout
    ├── saia_python/                  # Main package
    │   ├── __init__.py               # Public API, version, functional wrappers
    │   ├── client.py                 # SAIAClient — composes all services
-   │   ├── chat.py                   # ChatService — completions + streaming
+   │   ├── aio.py                    # AsyncSAIAClient — async twins (httpx)
+   │   ├── chat.py                   # ChatService — chat completions + streaming
+   │   ├── completions.py            # CompletionsService — raw-text completion
+   │   ├── responses_api.py          # ResponsesService — OpenAI Responses format
+   │   ├── messages.py               # MessagesService — Anthropic Messages format
+   │   ├── responses.py              # text_of, iter_text, usage_of — read any result
+   │   ├── structured.py             # Structured output from a Pydantic model
    │   ├── voice.py                  # VoiceService — transcribe + translate
    │   ├── arcana.py                 # ArcanaService — RAG / knowledge bases
+   │   ├── arcana_references.py      # ARCANA reference-citation parser
    │   ├── models.py                 # ModelsService — list available models
+   │   ├── tokenizer.py              # Tokenizers — download, chat-template token counting
    │   ├── documents.py              # DocumentService — Docling conversion
    │   ├── openai_compat.py          # OpenAI SDK compatibility layer
    │   ├── auth.py                   # Credential and config discovery
    │   ├── rate_limits.py            # RateLimitInfo dataclass + parser
    │   ├── exceptions.py             # SAIAError hierarchy + raise_for_status
-   │   └── _streaming.py             # Shared SSE iterator
+   │   ├── _http.py                  # Shared transport: retry policy, post_generation
+   │   ├── _payloads.py              # Request-body builders, shared sync/async
+   │   ├── _streaming.py             # Shared SSE iterator
+   │   ├── _async_http.py            # Async transport (httpx)
+   │   ├── _async_streaming.py       # Async SSE stream (httpx)
+   │   └── _util.py                  # Small internal utilities
    ├── tests/                        # Unit tests
    ├── docs/                         # Sphinx documentation (PyData theme)
+   │   ├── adr/                      # Architecture Decision Records
+   │   └── proposals/                # Design proposals (not part of the site)
    ├── examples/
-   │   ├── saia_python_demo.ipynb    # Interactive demo
-   │   └── config.toml.example       # Template for structured config
+   │   ├── saia_python_demo.ipynb         # Interactive demo
+   │   ├── openai_compatible_proxy.ipynb  # OpenAI-compatible proxy example
+   │   └── config.toml.example            # Template for structured config
    ├── .github/workflows/            # CI/CD (tests + docs deployment)
    ├── pyproject.toml                # Package metadata + dependencies
    └── README.md
@@ -45,8 +61,14 @@ The package follows a four-layer architecture:
   variables, ``.env``, ``.saia_api``, and ``config.toml``.
 - ``exceptions.py`` — exception hierarchy and the single
   ``raise_for_status()`` implementation used by all service modules.
-- ``_streaming.py`` — SSE (Server-Sent Events) line parser, shared by
-  ``ChatService`` and ``ArcanaService``.
+- ``_http.py`` — the shared transport: the 429 retry policy
+  (``RetryPolicy``) and ``post_generation``, which chat, completions,
+  Responses and Messages all send through.
+- ``_payloads.py`` — pure request-body builders (``build_chat_body``,
+  ``build_completion_body``, ``build_response_body``, ``build_message_body``)
+  and the ARCANA fields, shared by the sync and async services.
+- ``_streaming.py`` — SSE (Server-Sent Events) line parser, shared by every
+  service that streams.
 - ``rate_limits.py`` — parses the rate-limit response headers (both schemes
   SAIA has used, plus ``Retry-After``) into a ``RateLimitInfo`` dataclass.
 
@@ -55,6 +77,11 @@ The package follows a four-layer architecture:
 - ``chat.py`` — ``ChatService``: chat completions with streaming support.
   ``client.chat.completions`` is a ``ChatCompletions`` object whose
   ``create()`` sends the request, as in the OpenAI SDK.
+- ``completions.py``, ``responses_api.py`` and ``messages.py`` —
+  ``CompletionsService``, ``ResponsesService`` and ``MessagesService``: SAIA's
+  other routes that generate text, in OpenAI's text-completion, OpenAI's
+  Responses and Anthropic's Messages formats (see
+  :doc:`implementation`, "Native Generation Routes").
 - ``voice.py`` — ``VoiceService``: audio transcription and translation.
 - ``arcana.py`` — ``ArcanaService``: RAG knowledge base management and chat.
 - ``models.py`` — ``ModelsService``: model listing.
@@ -63,11 +90,22 @@ The package follows a four-layer architecture:
 Each service receives a shared ``requests.Session`` and base URL from the
 client. Services do not manage authentication or HTTP sessions.
 
+Pure helpers sit next to the services and make no requests of their own:
+``responses.py`` reads the answer, a stream's text and the token counts from
+any route's result (``text_of``, ``iter_text``, ``usage_of``), native dicts and
+SDK objects alike; ``structured.py`` turns a Pydantic model into a
+``response_format`` and validates the answer; ``arcana_references.py`` parses
+ARCANA's reference block.
+
 **Composition** — wires infrastructure and services together:
 
 - ``client.py`` — ``SAIAClient`` creates the authenticated session and
-  lazily instantiates service classes as properties (``.chat``, ``.voice``,
-  ``.models``, ``.arcana``, ``.documents``).
+  lazily instantiates service classes as properties (``.chat``,
+  ``.completions``, ``.responses``, ``.messages``, ``.voice``, ``.models``,
+  ``.tokenizers``, ``.arcana``, ``.documents``).
+- ``aio.py`` — ``AsyncSAIAClient``, the ``httpx.AsyncClient`` twin for chat,
+  the three other generation routes, ARCANA chat and the read-only calls
+  (:doc:`ADR-0007 <adr/0007-native-async-transport>`).
 
 **Public surface** — the user-facing API:
 

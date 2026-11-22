@@ -26,7 +26,10 @@ in only via the optional `[async]` extra.
   `_async_http.apost_generation`) and build their bodies in `_payloads.py`.
   Their calls are named `.create()`, as in the vendor SDKs; chat's is
   `client.chat.completions.create(...)`. Docs and examples use that form; the
-  older `client.chat.completions(...)` stays as an alias.
+  older `client.chat.completions(...)` stays as an alias. Each of `/completions`,
+  `/responses` and `/messages` has an opt-in live check
+  (`tests/test_live_*_route.py`, listed in `docs/testing.rst`); run them before
+  a release (ADR-0008).
 - **`responses.py`** — helpers that read chat, completion, Responses API and
   Messages API results and streams, native dicts and SDK objects alike
   (`text_of`, `iter_text`, `aiter_text`, `usage_of`); **not** a wrapper for
@@ -38,7 +41,8 @@ in only via the optional `[async]` extra.
 - **`messages.py`** — Anthropic's Messages format on `/messages`
   (`client.messages`), native, without the Anthropic SDK; `max_tokens` is
   required. As of 2026-11-22, GWDG's documentation does not list
-  `/messages`; the route works (checked live that day).
+  `/messages`; the route works (checked live that day). To re-check:
+  `SAIA_MESSAGES_LIVE=1 pytest tests/test_live_messages_route.py`.
 - **`structured.py`** — structured output: a Pydantic v2 model in, a validated
   instance out (`chat.completions_structured`, built on `response_format_for` +
   `parse_structured`). SAIA (vLLM) enforces the `json_schema` server-side, so

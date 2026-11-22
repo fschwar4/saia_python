@@ -51,6 +51,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keeps working, without a deprecation warning. The docs, docstrings and
   example notebooks use `.create()`. Unit tests cover both call forms, sync
   and async, and the ways to patch them listed under Changed.
+- **ADR-0008 and documentation for the native routes.** ADR-0008 records
+  why the three services return dicts, offer only stateless calls, share one
+  set of result readers and are watched by live checks. The Implementation
+  page gains a section on the routes: their status in GWDG's documentation
+  (seen 2026-11-22), what works on each (seen 2026-11-19), and the Responses
+  API features SAIA does not support. The README and the Quickstart show the
+  calls, and the module trees list the new modules.
 - **One set of helpers for native results and SDK objects.**
   `text_of()` now also reads `text_completion` responses, Responses API
   objects (every `output_text` part of the message items, reasoning skipped,
@@ -163,6 +170,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`images.generate()` is listed as working.** The OpenAI compatibility
+  table in the docs called it not available. Through the OpenAI SDK it works
+  with `model="flux"`, a model `/models` does not list, and the image comes
+  back as base64 only, never as a URL (checked 2026-11-22).
 - **ARCANA references from PDF sources are parsed.** GWDG lists a PDF chunk
   as `[RREF1] <name>.pdf p.21,y:413 (0.688)`, with the page and the position
   on it (seen 2026-11-21). `REFERENCES_ENTRY_RE` accepted only

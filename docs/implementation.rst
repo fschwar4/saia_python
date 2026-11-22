@@ -167,6 +167,13 @@ Endpoint compatibility:
    * - ``chat.completions.parse()``
      - Works
      - Structured output from a Pydantic model
+   * - ``completions.create()``
+     - Works
+     - Raw-text completion; native twin ``client.completions.create()``
+   * - ``responses.create()``
+     - Works
+     - Stateless only (see `Native Generation Routes`_); native twin
+       ``client.responses.create()``
    * - ``models.list()``
      - Works
      - Returns SAIA model IDs
@@ -177,8 +184,152 @@ Endpoint compatibility:
      - N/A
      - Use ``SAIAClient.voice`` instead
    * - ``images.generate()``
-     - N/A
-     - Not available
+     - Works
+     - Only with ``model="flux"``, which ``/models`` does not list; the image
+       comes back as base64 (``b64_json``), never as a URL (checked
+       2026-11-22)
+
+
+Native Generation Routes
+------------------------
+
+Besides chat, SAIA answers on three more routes that generate text, and
+saia-python wraps each of them natively, on the same transport as chat: the
+429 retry policy, ``_rate_limits`` on every response dict (``rate_limits`` on a
+stream), the typed errors, streaming, and an async twin on ``AsyncSAIAClient``.
+The calls are named as in the vendor SDKs, so moving between the native call
+and the SDK call changes one word.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 44 38
+
+   * - Route
+     - Native call
+     - Format and SDK twin
+   * - ``/completions``
+     - ``client.completions.create(model, prompt, max_tokens=...)``
+     - OpenAI's text completion; ``client.openai.completions.create()``
+   * - ``/responses``
+     - ``client.responses.create(model, input, instructions=...)``
+     - OpenAI's Responses API; ``client.openai.responses.create()``
+   * - ``/messages``
+     - ``client.messages.create(model, messages, max_tokens, system=...)``
+     - Anthropic's Messages API, which the OpenAI SDK cannot send
+
+As of 2026-11-22, GWDG's documentation lists ``/completions`` but neither
+``/responses`` nor ``/messages``. Both work and answer in their vendor formats
+(checked live that day). The opt-in live checks in :doc:`testing` re-check all
+three routes, and :doc:`ADR-0008 <adr/0008-native-wrappers-for-undocumented-routes>`
+records the design.
+
+
+Dicts, Not Objects
+~~~~~~~~~~~~~~~~~~
+
+The native services return the JSON as a plain dict, and a stream yields dict
+chunks, as chat and ARCANA do. Typed objects come from the SDK path:
+``client.openai.responses.create()`` returns an
+``openai.types.responses.Response`` with ``.output_text`` and ``.usage``. Both
+formats are large and grow with each vLLM release, and GWDG does not document
+two of the three routes, so typed classes of our own would need constant
+upkeep.
+
+The same helpers read either kind of result: :func:`~saia_python.text_of` the
+answer, :func:`~saia_python.iter_text` a stream's text, and
+:func:`~saia_python.usage_of` the token counts.
+
+.. code-block:: python
+
+   from saia_python import iter_text, text_of
+
+   native = client.responses.create(model="qwen3-30b-a3b-instruct-2507", input="Hello!")
+   typed = client.openai.responses.create(model="qwen3-30b-a3b-instruct-2507", input="Hello!")
+   print(text_of(native), text_of(typed))  # a dict and a Response, read alike
+
+   text = iter_text(client.messages.create(
+       "qwen3-30b-a3b-instruct-2507",
+       [{"role": "user", "content": "Name three colours."}],
+       max_tokens=64,
+       stream=True,
+   ))
+   for piece in text:
+       print(piece, end="")
+   print(text.usage)  # the token counts the stream reported
+
+
+``/responses`` Keeps No State
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+OpenAI's Responses API can store a response on the server and build on it
+later. On SAIA none of that works:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 36 36
+
+   * - Feature
+     - What it does at OpenAI
+     - SAIA, as of 2026-11-19
+   * - ``store: true``
+     - keeps the response on the server
+     - accepted, but nothing is retrievable afterwards
+   * - ``previous_response_id``
+     - continues a conversation without resending it
+     - ``404 "Response with id … not found"``
+   * - ``GET /responses/{id}``
+     - fetches a stored response
+     - ``404 {"detail": "Not Found"}``
+   * - delete, cancel, ``background: true``, input-item listing
+     - manage stored or running responses
+     - not offered: they need a stored response or a ``GET`` route
+
+This holds for ``client.openai.responses.create()`` as much as for the native
+service. Send the whole conversation each time, as an ``input`` list, the way
+chat sends ``messages``. The stateful fields still pass through ``**kwargs``
+unchanged.
+
+
+What Works on Each Route
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Checked live on 2026-11-19 with ``qwen3-30b-a3b-instruct-2507`` and
+``deepseek-v4-flash-0731``; the reasoning row with
+``deepseek-v4.1-flash-1017``:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 26 26 26
+
+   * - Feature
+     - ``/completions``
+     - ``/responses``
+     - ``/messages``
+   * - Required fields
+     - ``model``, ``prompt``
+     - ``model``, ``input``
+     - ``model``, ``messages``, ``max_tokens`` (400 without it)
+   * - Tool calling: automatic, forced, streamed, round trip
+     - n/a (no tools)
+     - works
+     - works
+   * - Output that follows a JSON Schema
+     - ``response_format`` depends on the model: enforced for qwen, not for
+       deepseek
+     - enforced, via ``text.format``
+     - ``response_format`` is ignored; force a tool instead
+   * - Reasoning
+     - n/a
+     - a separate ``reasoning`` output item
+     - a separate ``thinking`` block
+   * - ARCANA fields
+     - not checked
+     - ignored
+     - ignored
+
+ARCANA retrieval works only on ``/chat/completions``, so RAG stays on
+:meth:`ArcanaService.chat <saia_python.arcana.ArcanaService.chat>`. Without
+``max_tokens``, ``/completions`` stops after 16 tokens (seen 2026-11-20).
 
 
 Dual API Design
