@@ -254,12 +254,18 @@ limits:
    SAIA_RESPONSES_LIVE=1 pytest tests/test_live_responses_route.py
    SAIA_STRUCTURED_LIVE=1 pytest tests/test_live_structured.py
 
+The checks read the key the way the client does (``SAIA_API_KEY``,
+``.saia_api``, ``.env``), send it only to the configured base URL and never
+print it. Their prompts are fixed and generic, such as "What is the capital of
+France?". CI sets none of the variables, so there they are always skipped.
+
 The three route checks call the native service, plain and streamed, and check
 the response shape, how the stream ends and what ``text_of`` reads. As of
 2026-11-22, GWDG's documentation lists neither ``/responses`` nor
 ``/messages``, so these checks are what notices a change there
 (:doc:`ADR-0008 <adr/0008-native-wrappers-for-undocumented-routes>`). Run them
-before a release; together they send seven requests:
+before a release when a key is available locally; together they send seven
+requests:
 
 .. code-block:: bash
 

@@ -29,7 +29,7 @@ in only via the optional `[async]` extra.
   older `client.chat.completions(...)` stays as an alias. Each of `/completions`,
   `/responses` and `/messages` has an opt-in live check
   (`tests/test_live_*_route.py`, listed in `docs/testing.rst`); run them before
-  a release (ADR-0008).
+  a release when a key is available locally (ADR-0008).
 - **`responses.py`** — helpers that read chat, completion, Responses API and
   Messages API results and streams, native dicts and SDK objects alike
   (`text_of`, `iter_text`, `aiter_text`, `usage_of`); **not** a wrapper for
