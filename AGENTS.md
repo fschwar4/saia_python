@@ -24,6 +24,9 @@ in only via the optional `[async]` extra.
   `openai_compat`, `rate_limits`, `auth`; `client.py` is the entry point). Async twins live in `aio.py` + `_async_*.py`.
   Routes that generate text share one transport (`_http.post_generation`, async
   `_async_http.apost_generation`) and build their bodies in `_payloads.py`.
+  Their calls are named `.create()`, as in the vendor SDKs; chat's is
+  `client.chat.completions.create(...)`. Docs and examples use that form; the
+  older `client.chat.completions(...)` stays as an alias.
 - **`responses.py`** — helpers that read chat, completion, Responses API and
   Messages API results and streams, native dicts and SDK objects alike
   (`text_of`, `iter_text`, `aiter_text`, `usage_of`); **not** a wrapper for

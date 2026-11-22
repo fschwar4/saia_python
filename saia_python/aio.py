@@ -17,7 +17,7 @@ calls and ``async for`` over a stream::
             arcana_id="owner/kb",
         )
         # streaming plain chat
-        stream = await client.chat.completions(
+        stream = await client.chat.completions.create(
             model="...", messages=[...], stream=True,
         )
         async for chunk in stream:
@@ -43,6 +43,7 @@ the two transports cannot drift.
 from __future__ import annotations
 
 import logging
+from functools import cached_property
 from typing import TYPE_CHECKING, Any, cast
 
 from ._async_http import aexecute, apost_chat_completion, apost_generation
@@ -80,6 +81,7 @@ _CONTROL_PLANE_TIMEOUT = 60.0
 __all__ = [
     "AsyncSAIAClient",
     "AsyncChatService",
+    "AsyncChatCompletions",
     "AsyncCompletionsService",
     "AsyncResponsesService",
     "AsyncMessagesService",
@@ -104,6 +106,70 @@ def _require_httpx() -> Any:
     return httpx
 
 
+class AsyncChatCompletions:
+    """Async ``client.chat.completions``: send chat completions with :meth:`create`.
+
+    The twin of :class:`~saia_python.chat.ChatCompletions`:
+    ``await client.chat.completions.create(...)``. Calling the object itself,
+    ``await client.chat.completions(...)``, does the same; that older form
+    keeps working.
+    """
+
+    def __init__(self, service: AsyncChatService):
+        self._service = service
+
+    async def create(
+        self,
+        model: str,
+        messages: list[dict],
+        *,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        max_tokens: int | None = None,
+        stream: bool = False,
+        retry: RetryPolicy | bool | None = None,
+        **kwargs: Any,
+    ) -> dict | AsyncSSEStream:
+        """Send a chat completion request. See :meth:`ChatCompletions.create
+        <saia_python.chat.ChatCompletions.create>`.
+
+        With ``stream=False`` returns the response dict (plus a ``_rate_limits``
+        key); with ``stream=True`` returns an :class:`AsyncSSEStream` to iterate,
+        e.g. with :func:`~saia_python.aiter_text`. ``retry`` overrides the
+        service policy for this call (``False`` fails fast on a 429 with an
+        informative :class:`~saia_python.RateLimitError`).
+        """
+        service = self._service
+        body = build_chat_body(
+            model,
+            messages,
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_tokens,
+            **kwargs,
+        )
+        return await apost_generation(
+            service._client,
+            f"{service._base_url}/chat/completions",
+            body,
+            stream=stream,
+            policy=resolve_retry(service._retry, retry),
+        )
+
+    # As in ChatCompletions: type checkers see create's signature, and at
+    # runtime create is looked up on each call. The call returns create's
+    # coroutine, so ``await client.chat.completions(...)`` works as before.
+    if TYPE_CHECKING:
+        __call__ = create
+    else:
+
+        def __call__(self, *args, **kwargs):
+            return self.create(*args, **kwargs)
+
+    def __repr__(self) -> str:
+        return f"AsyncChatCompletions(base_url={self._service._base_url!r})"
+
+
 class AsyncChatService:
     """Async access to ``/chat/completions`` (the twin of :class:`~saia_python.chat.ChatService`)."""
 
@@ -118,40 +184,15 @@ class AsyncChatService:
         self._base_url = base_url
         self._retry = coerce_retry(retry)
 
-    async def completions(
-        self,
-        model: str,
-        messages: list[dict],
-        *,
-        temperature: float | None = None,
-        top_p: float | None = None,
-        max_tokens: int | None = None,
-        stream: bool = False,
-        retry: RetryPolicy | bool | None = None,
-        **kwargs: Any,
-    ) -> dict | AsyncSSEStream:
-        """Send a chat completion request. See :meth:`ChatService.completions`.
+    @cached_property
+    def completions(self) -> AsyncChatCompletions:
+        """The chat completions; send a request with :meth:`~AsyncChatCompletions.create`.
 
-        With ``stream=False`` returns the response dict (plus a ``_rate_limits``
-        key); with ``stream=True`` returns an :class:`AsyncSSEStream` to iterate.
-        ``retry`` overrides the service policy for this call (``False`` fails
-        fast on a 429 with an informative :class:`~saia_python.RateLimitError`).
+        Built on first access and kept on the service, as
+        :attr:`ChatService.completions
+        <saia_python.chat.ChatService.completions>` is.
         """
-        body = build_chat_body(
-            model,
-            messages,
-            temperature=temperature,
-            top_p=top_p,
-            max_tokens=max_tokens,
-            **kwargs,
-        )
-        return await apost_generation(
-            self._client,
-            f"{self._base_url}/chat/completions",
-            body,
-            stream=stream,
-            policy=resolve_retry(self._retry, retry),
-        )
+        return AsyncChatCompletions(self)
 
     async def completions_structured(
         self,
@@ -172,7 +213,7 @@ class AsyncChatService:
         :class:`~saia_python.StructuredOutputError` when there is no answer
         that validates.
         """
-        response = await self.completions(
+        response = await self.completions.create(
             model,
             messages,
             temperature=temperature,
@@ -563,7 +604,7 @@ class AsyncSAIAClient:
     pooling). Use it as an async context manager so the pool is closed::
 
         async with AsyncSAIAClient() as client:
-            await client.chat.completions(model="...", messages=[...])
+            await client.chat.completions.create(model="...", messages=[...])
 
     Credential + base-URL resolution is identical to
     :class:`~saia_python.SAIAClient` (delegated to the same

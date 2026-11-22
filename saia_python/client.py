@@ -58,7 +58,7 @@ class SAIAClient:
         client = SAIAClient()
 
         # Native services
-        client.chat.completions(model="...", messages=[...])
+        client.chat.completions.create(model="...", messages=[...])
 
         # OpenAI-compatible client (requires pip install saia-python[openai])
         client.openai.chat.completions.create(model="...", messages=[...])

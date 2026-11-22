@@ -17,7 +17,7 @@ validate-and-retry loop. This module covers the two client-side ends:
 Use the two helpers directly when you also need the raw response, e.g. its
 ``usage``::
 
-    resp = client.chat.completions(
+    resp = client.chat.completions.create(
         model, messages, response_format=response_format_for(Invoice)
     )
     invoice = parse_structured(resp, Invoice)
@@ -74,7 +74,8 @@ def parse_structured(response: dict, response_model: type[ModelT]) -> ModelT:
     Reads the first choice's ``content`` — the JSON string the model wrote — and
     validates it with ``response_model.model_validate_json``. Works on any
     OpenAI-style ChatCompletion dict, such as the one
-    :meth:`~saia_python.chat.ChatService.completions` returns.
+    :meth:`client.chat.completions.create
+    <saia_python.chat.ChatCompletions.create>` returns.
 
     Args:
         response: A chat completion response dict.

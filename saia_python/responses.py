@@ -190,7 +190,7 @@ def text_of(response: Any) -> str:
 
     Works for the response returned by:
 
-    - :meth:`ChatService.completions <saia_python.chat.ChatService.completions>`
+    - :meth:`ChatCompletions.create <saia_python.chat.ChatCompletions.create>`
     - :meth:`ArcanaService.chat <saia_python.arcana.ArcanaService.chat>`
     - :meth:`CompletionsService.create
       <saia_python.completions.CompletionsService.create>`

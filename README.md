@@ -37,7 +37,7 @@ client = SAIAClient()
 print(client.models.list_ids())
 
 # Chat completion
-response = client.chat.completions(
+response = client.chat.completions.create(
     model="meta-llama-3.1-8b-instruct",
     messages=[{"role": "user", "content": "Hello!"}],
 )
@@ -83,7 +83,7 @@ async def main():
         print(answer["choices"][0]["message"]["content"])
 
         # Streaming plain chat — retry=False fails fast with an informative 429
-        stream = await client.chat.completions(
+        stream = await client.chat.completions.create(
             model="meta-llama-3.1-8b-instruct",
             messages=[{"role": "user", "content": "Hello!"}],
             stream=True,

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Generic, Literal, TypeVar
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import BaseModel, ValidationError
@@ -170,6 +170,27 @@ def test_completions_structured_refuses_streaming():
     with pytest.raises(TypeError):
         svc.completions_structured("m", [], Sentiment, stream=True)
     svc._session.post.assert_not_called()
+
+
+def test_completions_structured_goes_through_create():
+    # So a test that patches completions.create also catches this method.
+    svc = _sync_service(_response(GOOD))
+    with patch.object(
+        svc.completions, "create", return_value=_response(GOOD)
+    ) as create:
+        result = svc.completions_structured("m", [], Sentiment)
+    assert result == Sentiment(label="negative", confidence=0.95)
+    assert create.call_args.kwargs["response_format"] == response_format_for(Sentiment)
+    svc._session.post.assert_not_called()
+
+
+def test_async_completions_structured_goes_through_create():
+    svc = AsyncChatService(FakeAsyncClient(), "https://x/v1")
+    create = AsyncMock(return_value=_response(GOOD))
+    with patch.object(svc.completions, "create", create):
+        result = asyncio.run(svc.completions_structured("m", [], Sentiment))
+    assert result == Sentiment(label="negative", confidence=0.95)
+    assert create.await_args.kwargs["stream"] is False
 
 
 def test_async_completions_structured_sends_schema_and_returns_instance():

@@ -173,18 +173,21 @@ client.chat.completions(model, messages, ...)          # existing form keeps wor
 await aclient.chat.completions.create(...)             # async twin, same shape
 ```
 
-- **Mechanics.** `ChatService.completions` changes from a method to a property. The property returns a small `ChatCompletions` object, holding the service, with:
+- **Mechanics.** `ChatService.completions` changes from a method to a `functools.cached_property`. It returns a small `ChatCompletions` object, holding the service, with:
   - `create(...)`: the current implementation, moved over;
   - `__call__(...)`: delegates to `create`, so every existing call keeps working.
 
   The same applies to `AsyncChatService`.
+- **Why `cached_property`, not `property` (phase 5).** A plain `property` builds a new object on every access. It also has no setter, so assigning on the instance fails, and `patch.object(client.chat, "completions", …)` raises `AttributeError`. A `cached_property` builds the object on first access and stores it on the instance: `client.chat.completions` is the same object every time, and a patch on the instance works. The object reads the session, base URL and retry policy from the service on every call, so the stored object cannot go stale. `__call__` looks `create` up on each call, so a patched `create` also catches the old call form. Type checkers see `create`'s signature for both forms.
 - **No deprecation warning yet.** Docs and examples switch to `.create()`, and the old call form is documented as an alias. Whether to deprecate it is decided at 1.0.
 - **`completions_structured` stays as it is.** The OpenAI SDK's nearest twin, `chat.completions.parse()`, returns a `ParsedChatCompletion`, not the model instance. Reusing the name `parse` with a different return type would mislead.
 - **Other services** keep their names:
   - `models.list()` already matches the SDK.
   - Voice's SDK twin would be a new `audio.transcriptions.create()` service. That is out of scope here.
   - Documents and ARCANA have no SDK twin.
-- **Compatibility risk.** Low. Callers and `MagicMock`-based patches of `client.chat.completions` still work. Only code that patches the class attribute `ChatService.completions` directly sees a property instead of a function. Mention this in the CHANGELOG.
+- **Compatibility risk.** Low. Callers keep working, and so do patches on the instance: of the whole object (`patch.object(client.chat, "completions", …)`) and of `create` (`patch.object(client.chat.completions, "create", …)`). Two things change, and the CHANGELOG names both:
+  - A patch of `ChatService.completions` on the class misses a service that has already built its object, and fails with `autospec=True`. Patching `ChatCompletions.create` on the class covers every service instead.
+  - `inspect.iscoroutinefunction(aclient.chat.completions)` is `False`, because the object is not a coroutine function; `aclient.chat.completions.create` is.
 
 ## 5. Transport
 

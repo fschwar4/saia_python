@@ -43,6 +43,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `build_message_body()` builds the request body. The unit tests replay
   responses and streams recorded on 2026-11-22: a plain answer, a reasoning
   model's, a tool call and an answer cut off by `max_tokens`.
+- **`client.chat.completions.create(...)`, as in the OpenAI SDK.** Chat gets
+  `create()` like the new services, and the async twin is
+  `await aclient.chat.completions.create(...)`. The native call and
+  `client.openai.chat.completions.create(...)` now differ by one word. The
+  form without `.create`, `client.chat.completions(...)`, does the same and
+  keeps working, without a deprecation warning. The docs, docstrings and
+  example notebooks use `.create()`. Unit tests cover both call forms, sync
+  and async, and the ways to patch them listed under Changed.
 - **One set of helpers for native results and SDK objects.**
   `text_of()` now also reads `text_completion` responses, Responses API
   objects (every `output_text` part of the message items, reasoning skipped,
@@ -122,6 +130,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The old names stay
   as aliases, without a deprecation warning, and `saia_python.aio` exports
   both.
+- **`client.chat.completions` is an object, built once per service.**
+  `ChatService.completions` is no longer a method but a
+  `functools.cached_property` that returns a `ChatCompletions` object (on
+  the async client an `AsyncChatCompletions`). Calls work as before. To mock
+  chat calls in a test, patch `create`: on one client with
+  `patch.object(client.chat.completions, "create", …)`, on every client with
+  `patch.object(ChatCompletions, "create", …)`. Either catches both call
+  forms and `completions_structured()`. Replacing the whole object on the
+  instance, `patch.object(client.chat, "completions", …)`, works too. A patch
+  of `ChatService.completions` on the class misses a service that has
+  already built its object, and fails with `autospec=True`.
+  `inspect.iscoroutinefunction(aclient.chat.completions)` is now `False`;
+  where code checks that, pass `aclient.chat.completions.create`.
 - **`text_of()` logs a tool call at DEBUG, not as a warning.** In a tool loop
   a response that calls a tool instead of answering is the expected answer,
   yet each one logged a warning (`first choice has empty content;

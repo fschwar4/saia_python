@@ -102,13 +102,13 @@ OOP Interface
    client.models.list_ids()
 
    # Chat completion
-   client.chat.completions(
+   client.chat.completions.create(
        model="meta-llama-3.1-8b-instruct",
        messages=[{"role": "user", "content": "Hello!"}],
    )
 
    # Streaming
-   for chunk in client.chat.completions(
+   for chunk in client.chat.completions.create(
        model="meta-llama-3.1-8b-instruct",
        messages=[{"role": "user", "content": "Count to 5."}],
        stream=True,
@@ -171,6 +171,12 @@ OOP Interface
    # Rate limits
    print(client.get_rate_limits())
 
+``client.chat.completions.create(...)`` matches the OpenAI SDK: the same call
+through the SDK only adds ``openai.``, as in
+``client.openai.chat.completions.create(...)`` (see `OpenAI SDK
+Integration`_). The older form without ``.create``,
+``client.chat.completions(...)``, does the same and keeps working.
+
 
 Tool Use (Function Calling)
 ---------------------------
@@ -195,7 +201,7 @@ JSON schemas; the model decides when to invoke them:
        },
    }]
 
-   response = client.chat.completions(
+   response = client.chat.completions.create(
        model="deepseek-v4-flash-0731",
        messages=[{"role": "user", "content": "Weather in Berlin?"}],
        tools=tools,
@@ -207,7 +213,7 @@ JSON schemas; the model decides when to invoke them:
        args = json.loads(tc["function"]["arguments"])
        result = {"temp_c": 18, "condition": "partly cloudy"}
 
-       final = client.chat.completions(
+       final = client.chat.completions.create(
            model="deepseek-v4-flash-0731",
            messages=[
                {"role": "user", "content": "Weather in Berlin?"},
@@ -274,7 +280,7 @@ too (e.g. its ``usage``), use the two helpers it is built from:
 
    from saia_python import parse_structured, response_format_for
 
-   response = client.chat.completions(
+   response = client.chat.completions.create(
        model="meta-llama-3.1-8b-instruct",
        messages=[...],
        response_format=response_format_for(Sentiment),

@@ -91,7 +91,7 @@ async def apost_generation(
 
     The async twin of :func:`saia_python._http.post_generation`, shared by
     every route that generates text (``/chat/completions``, ``/completions``,
-    ``/responses``).
+    ``/responses``, ``/messages``).
     For ``stream=False`` it returns the response dict with an extra
     ``"_rate_limits"`` key; for ``stream=True`` it returns a connected
     :class:`~saia_python.aio.AsyncSSEStream` (imported lazily to avoid a cycle),

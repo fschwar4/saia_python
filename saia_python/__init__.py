@@ -195,6 +195,7 @@ _ASYNC_EXPORTS = frozenset(
     {
         "AsyncSAIAClient",
         "AsyncChatService",
+        "AsyncChatCompletions",
         "AsyncCompletionsService",
         "AsyncResponsesService",
         "AsyncMessagesService",
@@ -252,10 +253,11 @@ def chat_completion(
 ) -> dict | SSEStream:
     """Send a chat completion request (functional API).
 
-    See :meth:`ChatService.completions` for full parameter docs. With
-    ``stream=True`` this returns an iterable ``SSEStream`` instead of a dict.
+    See :meth:`ChatCompletions.create <saia_python.chat.ChatCompletions.create>`
+    for full parameter docs. With ``stream=True`` this returns an iterable
+    ``SSEStream`` instead of a dict.
     """
-    return _make_client(api_key, base_url).chat.completions(
+    return _make_client(api_key, base_url).chat.completions.create(
         model=model, messages=messages, **kwargs
     )
 

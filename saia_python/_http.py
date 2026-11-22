@@ -226,13 +226,15 @@ def post_generation(
     """POST a generation request and normalise the response.
 
     The one transport for every route that generates text:
-    ``/chat/completions`` (:meth:`ChatService.completions
-    <saia_python.chat.ChatService.completions>` and :meth:`ArcanaService.chat
+    ``/chat/completions`` (:meth:`ChatCompletions.create
+    <saia_python.chat.ChatCompletions.create>` and :meth:`ArcanaService.chat
     <saia_python.arcana.ArcanaService.chat>`), ``/completions``
     (:meth:`CompletionsService.create
-    <saia_python.completions.CompletionsService.create>`) and ``/responses``
+    <saia_python.completions.CompletionsService.create>`), ``/responses``
     (:meth:`ResponsesService.create
-    <saia_python.responses_api.ResponsesService.create>`). They share the
+    <saia_python.responses_api.ResponsesService.create>`) and ``/messages``
+    (:meth:`MessagesService.create
+    <saia_python.messages.MessagesService.create>`). They share the
     stream/non-stream handling, the 429 retry and the rate-limit surfacing; the
     URL, the ``body`` fields and the auth ``headers`` stay with the caller.
 

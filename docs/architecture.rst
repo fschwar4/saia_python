@@ -53,6 +53,8 @@ The package follows a four-layer architecture:
 **Service classes** — each module encapsulates one SAIA API surface:
 
 - ``chat.py`` — ``ChatService``: chat completions with streaming support.
+  ``client.chat.completions`` is a ``ChatCompletions`` object whose
+  ``create()`` sends the request, as in the OpenAI SDK.
 - ``voice.py`` — ``VoiceService``: audio transcription and translation.
 - ``arcana.py`` — ``ArcanaService``: RAG knowledge base management and chat.
 - ``models.py`` — ``ModelsService``: model listing.
@@ -83,7 +85,7 @@ The library exposes two equivalent calling styles:
    # Object-oriented
    client = SAIAClient()
    client.models.list_ids()
-   client.chat.completions(model="...", messages=[...])
+   client.chat.completions.create(model="...", messages=[...])
 
    # Functional
    from saia_python import list_model_ids, chat_completion
@@ -137,7 +139,7 @@ reuses a single session with HTTP keep-alive:
    # Shared session — recommended for batch processing
    client = SAIAClient()
    for prompt in prompts:
-       client.chat.completions(model="...", messages=[{"role": "user", "content": prompt}])
+       client.chat.completions.create(model="...", messages=[{"role": "user", "content": prompt}])
 
 This follows the same pattern as the ``requests`` library, where
 ``requests.get()`` creates an internal session while

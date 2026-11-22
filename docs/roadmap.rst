@@ -14,7 +14,7 @@ Research Tooling (v0.5)
   resume on failure.
 
 **Experiment logging**:
-  ``client.chat.completions(..., log_to="experiment")`` — log prompts,
+  ``client.chat.completions.create(..., log_to="experiment")`` — log prompts,
   responses, latency, and token counts to JSON Lines, CSV, or SQLite.
   Essential for reproducible research workflows.
 
@@ -28,7 +28,7 @@ Research Tooling (v0.5)
   ``client.usage.summary()`` with alerts before quota exhaustion.
 
 **Response caching**:
-  ``client.chat.completions(..., cache=True)`` — local cache keyed by
+  ``client.chat.completions.create(..., cache=True)`` — local cache keyed by
   (model, messages, parameters) to avoid redundant API calls during
   iterative prompt engineering.
 

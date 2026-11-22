@@ -2,7 +2,7 @@ Responses
 =========
 
 Helpers for reading generation responses and streams: chat and ARCANA RAG
-(:meth:`~saia_python.chat.ChatService.completions`,
+(:meth:`~saia_python.chat.ChatCompletions.create`,
 :meth:`~saia_python.arcana.ArcanaService.chat`), raw-text completions
 (:meth:`~saia_python.completions.CompletionsService.create`), the Responses
 API (:meth:`~saia_python.responses_api.ResponsesService.create`) and the
