@@ -184,6 +184,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   avoids the effect: on chat even an empty one, while `/messages` and
   `/responses` drop an empty `system` or `instructions`. The `/messages`
   live check sends one.
+- **The tokenizer docs say where the counts differ from SAIA's.**
+  `chat_template_tokens()` uses the chat template of the model's catalogue
+  repository. For `meta-llama-3.1-8b-instruct` that template is minimal,
+  while SAIA's prompt matches vLLM's tool-calling template for Llama 3.1,
+  so the count comes out lower than SAIA's `prompt_tokens`: by 20 tokens
+  with a system message and by 87 without one (seen 2026-11-23). The
+  tokenizer page now says so. For `qwen3-30b-a3b-instruct-2507` and
+  `deepseek-v4.1-flash-1017` the counts matched SAIA's exactly that day.
 - **ARCANA references from PDF sources are parsed.** GWDG lists a PDF chunk
   as `[RREF1] <name>.pdf p.21,y:413 (0.688)`, with the page and the position
   on it (seen 2026-11-21). `REFERENCES_ENTRY_RE` accepted only

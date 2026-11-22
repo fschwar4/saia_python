@@ -115,6 +115,26 @@ The result separates the raw text from the template's scaffolding:
 :func:`~saia_python.tokenizer.subword_fertility` (with an ``include_special``
 flag) are thin wrappers when you only need one number.
 
+The count uses the chat template published with the model's catalogue
+repository. Where SAIA serves the model with the same template, ``num_tokens``
+equals the ``prompt_tokens`` SAIA reports: on 2026-11-23 the two agreed exactly
+for ``qwen3-30b-a3b-instruct-2507`` and ``deepseek-v4.1-flash-1017``, with and
+without a system message.
+
+.. note::
+
+   ``meta-llama-3.1-8b-instruct`` is the exception. Its catalogue repository,
+   ``nvidia/Llama-3.1-8B-Instruct-FP8``, has a minimal template, while SAIA's
+   prompt for this model matches vLLM's tool-calling template for Llama 3.1
+   in its first version (`vLLM PR #8343
+   <https://github.com/vllm-project/vllm/pull/8343>`_) exactly. That template
+   adds a knowledge-cutoff and a date line to the system block, plus a default
+   system prompt about tool calling when the request has no system message.
+   So the count comes out lower than SAIA's ``prompt_tokens``: by 20 tokens
+   with a system message and by 87 without one (seen 2026-11-23 for the user
+   message "Name three colours."). A tokenizer whose ``chat_template`` is set
+   to that vLLM template, passed as ``tokenizer=``, reproduces SAIA's counts.
+
 Sizing a RAG corpus
 ~~~~~~~~~~~~~~~~~~~~~
 
