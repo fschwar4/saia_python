@@ -77,7 +77,7 @@ async def main():
         # Non-streaming RAG chat
         answer = await client.arcana.chat(
             model="deepseek-v4-flash-0731",
-            messages=[{"role": "user", "content": "Summarise the DLBCL first line."}],
+            messages=[{"role": "user", "content": "Summarise the onboarding guide."}],
             arcana_id="owner/kb",
         )
         print(answer["choices"][0]["message"]["content"])

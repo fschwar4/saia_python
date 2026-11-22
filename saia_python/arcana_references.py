@@ -64,7 +64,7 @@ REFERENCES_MARKER_RE = re.compile(r"\nReferences:\s*\n+\s*\[RREF\d+\]")
 REFERENCES_MARKER_MAX_LEN = 40
 
 # One per-entry header line, e.g.::
-#     [RREF1] onkopedia_dlbcl_5-1-1_immunchemotherapie__ID0E.md (0.319)
+#     [RREF1] doc-a_section-5-1.md (0.319)
 # A PDF source adds the chunk's page and its vertical position on that page
 # (seen 2026-11-21), and a file name may contain spaces::
 #     [RREF2] annual report.pdf p.21,y:413 (0.688)
@@ -88,7 +88,7 @@ class ArcanaReference:
     Attributes:
         n: The ``RREFn`` reference number emitted by the gateway.
         filename: The retrieved chunk's source filename (e.g.
-            ``"onkopedia_....md"``). Deriving a label or URL from it is the
+            ``"doc-a_section-5-1.md"``). Deriving a label or URL from it is the
             caller's responsibility — it depends on your corpus.
         distance: The retrieval distance score the gateway reports in
             parentheses, or ``None`` if it could not be parsed as a float.

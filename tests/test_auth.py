@@ -282,7 +282,7 @@ class TestExtractArcanaName:
         assert extract_arcana_name("user/name/with/slashes") == "name/with/slashes"
 
     def test_name_with_spaces(self):
-        assert extract_arcana_name("user/DLBCL Test-abc") == "DLBCL Test-abc"
+        assert extract_arcana_name("user/Team Docs-abc") == "Team Docs-abc"
 
 
 # ---------------------------------------------------------------------------

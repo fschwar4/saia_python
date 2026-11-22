@@ -19,13 +19,13 @@ from saia_python.arcana_references import REFERENCES_ANCHOR_RE
 # line, the ``References:`` marker, then one ``[RREFn]`` entry per chunk
 # (each followed by chunk body, which the parser ignores).
 _SAMPLE = (
-    "Die Immunchemotherapie ist Standard [RREF1].\n\n"
-    "Diese Rechercheunterstützung ersetzt keinen ärztlichen Rat.\n"
+    "Abschnitt 5.1 beschreibt das Standardverfahren [RREF1].\n\n"
+    "Diese Rechercheunterstützung ersetzt keine Prüfung der Quellen.\n"
     "-----------------------------------------\n"
     "References:\n\n"
-    "[RREF1] onkopedia_dlbcl_5-1-1_immunchemotherapie__ID0E.md (0.319)\n"
-    "## Immunchemotherapie\nChunk body text...\n"
-    "[RREF2] awmf-leitlinie_dlbcl-kurzversion_3-2_diagnostik.md (0.452)\n"
+    "[RREF1] doc-a_section-5-1.md (0.319)\n"
+    "## Abschnitt 5.1\nChunk body text...\n"
+    "[RREF2] doc-b_section-3-2.md (0.452)\n"
     "More chunk body...\n"
 )
 
@@ -36,10 +36,10 @@ def test_parse_splits_prose_and_references():
     # Prose keeps the answer + the HR line, but NOT the References block.
     assert "Diese Rechercheunterstützung" in parsed.prose
     assert "References:" not in parsed.prose
-    assert "[RREF1] onkopedia" not in parsed.prose
+    assert "[RREF1] doc-a" not in parsed.prose
     # Two distinct sources parsed, ordered by n, with distances.
     assert [r.n for r in parsed.references] == [1, 2]
-    assert parsed.references[0].filename.startswith("onkopedia_dlbcl")
+    assert parsed.references[0].filename.startswith("doc-a_section")
     assert parsed.references[0].distance == 0.319
     assert parsed.references[1].distance == 0.452
 
