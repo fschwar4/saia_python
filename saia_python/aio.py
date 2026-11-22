@@ -24,8 +24,8 @@ calls and ``async for`` over a stream::
             ...
 
 **Scope.** The async layer covers the **data plane** — chat completions,
-raw-text completions, the Responses API and ARCANA RAG chat (streaming +
-non-streaming), the rate-limit
+raw-text completions, the Responses API, the Messages API and ARCANA RAG chat
+(streaming + non-streaming), the rate-limit
 :class:`~saia_python.RetryPolicy` as a per-call ``retry`` keyword, rate-limit
 surfacing, and an informative 429 error when retry is off — plus the
 lightweight read-only control-plane calls (``models``, arcana
@@ -53,6 +53,7 @@ from ._payloads import (
     arcana_chat_headers,
     build_chat_body,
     build_completion_body,
+    build_message_body,
     build_response_body,
 )
 from .auth import resolve_credentials
@@ -81,6 +82,7 @@ __all__ = [
     "AsyncChatService",
     "AsyncCompletionsService",
     "AsyncResponsesService",
+    "AsyncMessagesService",
     "AsyncArcanaService",
     "AsyncModelsService",
     "AsyncSSEStream",
@@ -298,6 +300,65 @@ class AsyncResponsesService:
 
     def __repr__(self) -> str:
         return f"AsyncResponsesService(base_url={self._base_url!r})"
+
+
+class AsyncMessagesService:
+    """Async access to ``/messages`` (the twin of :class:`~saia_python.messages.MessagesService`).
+
+    As of 2026-11-22, GWDG's documentation does not list the route; the sync
+    class says what SAIA supports there.
+    """
+
+    def __init__(
+        self,
+        client: httpx.AsyncClient,
+        base_url: str,
+        *,
+        retry: RetryPolicy | bool | None = None,
+    ):
+        self._client = client
+        self._base_url = base_url
+        self._retry = coerce_retry(retry)
+
+    async def create(
+        self,
+        model: str,
+        messages: list[dict],
+        max_tokens: int,
+        *,
+        system: str | list[dict] | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        stream: bool = False,
+        retry: RetryPolicy | bool | None = None,
+        **kwargs: Any,
+    ) -> dict | AsyncSSEStream:
+        """Create a message. See :meth:`MessagesService.create
+        <saia_python.messages.MessagesService.create>`.
+
+        With ``stream=False`` returns the response dict (plus a ``_rate_limits``
+        key); with ``stream=True`` returns an :class:`AsyncSSEStream` of event
+        dicts to iterate, e.g. with :func:`~saia_python.aiter_text`.
+        """
+        body = build_message_body(
+            model,
+            messages,
+            max_tokens,
+            system=system,
+            temperature=temperature,
+            top_p=top_p,
+            **kwargs,
+        )
+        return await apost_generation(
+            self._client,
+            f"{self._base_url}/messages",
+            body,
+            stream=stream,
+            policy=resolve_retry(self._retry, retry),
+        )
+
+    def __repr__(self) -> str:
+        return f"AsyncMessagesService(base_url={self._base_url!r})"
 
 
 class AsyncArcanaService:
@@ -535,6 +596,7 @@ class AsyncSAIAClient:
         self._chat: AsyncChatService | None = None
         self._completions: AsyncCompletionsService | None = None
         self._responses: AsyncResponsesService | None = None
+        self._messages: AsyncMessagesService | None = None
         self._arcana: AsyncArcanaService | None = None
         self._models: AsyncModelsService | None = None
         # The model get_rate_limits() probes with, once looked up.
@@ -566,6 +628,15 @@ class AsyncSAIAClient:
                 self._client, self._base_url, retry=self._retry
             )
         return self._responses
+
+    @property
+    def messages(self) -> AsyncMessagesService:
+        """Async Messages API service (``/messages``; not in GWDG's docs)."""
+        if self._messages is None:
+            self._messages = AsyncMessagesService(
+                self._client, self._base_url, retry=self._retry
+            )
+        return self._messages
 
     @property
     def arcana(self) -> AsyncArcanaService:

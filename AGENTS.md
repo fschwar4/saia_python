@@ -20,18 +20,22 @@ server of its own**. The **sync core uses `requests`**; a **native async layer**
 in only via the optional `[async]` extra.
 
 - **Package:** `saia_python/` (services: `chat`, `completions`,
-  `responses_api`, `arcana`, `documents`, `models`, `voice`; plus
+  `responses_api`, `messages`, `arcana`, `documents`, `models`, `voice`; plus
   `openai_compat`, `rate_limits`, `auth`; `client.py` is the entry point). Async twins live in `aio.py` + `_async_*.py`.
   Routes that generate text share one transport (`_http.post_generation`, async
   `_async_http.apost_generation`) and build their bodies in `_payloads.py`.
-- **`responses.py`** — helpers that read chat, completion and Responses API
-  results and streams, native dicts and OpenAI SDK objects alike (`text_of`,
-  `iter_text`, `aiter_text`, `usage_of`); **not** a wrapper for OpenAI's
-  Responses API. That wrapper is **`responses_api.py`** (`client.responses`).
-  As of 2026-11-20, GWDG's documentation does not list `/responses`; the
-  route works and answers with genuine Responses API objects (checked live
-  that day). To re-check:
+- **`responses.py`** — helpers that read chat, completion, Responses API and
+  Messages API results and streams, native dicts and SDK objects alike
+  (`text_of`, `iter_text`, `aiter_text`, `usage_of`); **not** a wrapper for
+  OpenAI's Responses API. That wrapper is **`responses_api.py`**
+  (`client.responses`). As of 2026-11-20, GWDG's documentation does not list
+  `/responses`; the route works and answers with genuine Responses API
+  objects (checked live that day). To re-check:
   `SAIA_RESPONSES_LIVE=1 pytest tests/test_live_responses_route.py`.
+- **`messages.py`** — Anthropic's Messages format on `/messages`
+  (`client.messages`), native, without the Anthropic SDK; `max_tokens` is
+  required. As of 2026-11-22, GWDG's documentation does not list
+  `/messages`; the route works (checked live that day).
 - **`structured.py`** — structured output: a Pydantic v2 model in, a validated
   instance out (`chat.completions_structured`, built on `response_format_for` +
   `parse_structured`). SAIA (vLLM) enforces the `json_schema` server-side, so

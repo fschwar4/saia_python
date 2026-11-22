@@ -3,11 +3,11 @@
 Transport-free — no ``Session``, no ``httpx.AsyncClient``, no I/O — so these
 helpers are reused **verbatim** by the sync services (:mod:`saia_python.chat`,
 :mod:`saia_python.arcana`, :mod:`saia_python.completions`,
-:mod:`saia_python.responses_api`), the async services (:mod:`saia_python.aio`),
-and
-external gateways that assemble the request themselves (e.g. a proxy that builds
-its own body to inject a system prompt, then reuses
-:func:`apply_arcana_fields` to keep the ARCANA injection identical to ours).
+:mod:`saia_python.responses_api`, :mod:`saia_python.messages`), the async
+services (:mod:`saia_python.aio`), and external gateways that assemble the
+request themselves (e.g. a proxy that builds its own body to inject a system
+prompt, then reuses :func:`apply_arcana_fields` to keep the ARCANA injection
+identical to ours).
 
 Keeping the ARCANA injection in ONE place matters: GWDG only routes a request
 through the retrieval pipeline when **all three** of ``enable-tools`` + the
@@ -101,6 +101,39 @@ def build_response_body(
         body["instructions"] = instructions
     if max_output_tokens is not None:
         body["max_output_tokens"] = max_output_tokens
+    if temperature is not None:
+        body["temperature"] = temperature
+    if top_p is not None:
+        body["top_p"] = top_p
+    return body
+
+
+def build_message_body(
+    model: str,
+    messages: list[dict],
+    max_tokens: int,
+    *,
+    system: str | list[dict] | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+    **kwargs: Any,
+) -> dict:
+    """Assemble a ``/messages`` (Anthropic Messages format) request body.
+
+    ``max_tokens`` is required: SAIA rejects a body without it. ``system`` is
+    the system prompt (a string or a list of ``text`` blocks), which this
+    format keeps out of ``messages``. As in :func:`build_chat_body`, the knobs
+    are omitted when ``None`` and extra ``kwargs`` (``tools``, ``tool_choice``,
+    ``stop_sequences``, …) are merged verbatim.
+    """
+    body: dict = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        **kwargs,
+    }
+    if system is not None:
+        body["system"] = system
     if temperature is not None:
         body["temperature"] = temperature
     if top_p is not None:

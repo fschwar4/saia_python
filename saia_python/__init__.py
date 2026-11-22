@@ -24,6 +24,7 @@ from ._payloads import (
     arcana_chat_headers,
     build_chat_body,
     build_completion_body,
+    build_message_body,
     build_response_body,
 )
 from ._streaming import SSEStream
@@ -125,6 +126,7 @@ __all__ = [
     "build_chat_body",
     "build_completion_body",
     "build_response_body",
+    "build_message_body",
     "apply_arcana_fields",
     "arcana_chat_headers",
     "INFERENCE_SERVICE",
@@ -195,6 +197,7 @@ _ASYNC_EXPORTS = frozenset(
         "AsyncChatService",
         "AsyncCompletionsService",
         "AsyncResponsesService",
+        "AsyncMessagesService",
         "AsyncArcanaService",
         "AsyncModelsService",
     }

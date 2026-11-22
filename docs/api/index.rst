@@ -18,6 +18,7 @@ Services
    chat
    completions
    responses_api
+   messages
    voice
    arcana
    arcana_references

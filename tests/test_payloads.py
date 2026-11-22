@@ -13,6 +13,7 @@ from saia_python import (
     arcana_chat_headers,
     build_chat_body,
     build_completion_body,
+    build_message_body,
     build_response_body,
 )
 
@@ -86,6 +87,46 @@ def test_build_response_body_includes_set_knobs_and_merges_kwargs():
         "tools": tools,
         "text": {"format": {"type": "text"}},
     }
+
+
+def test_build_message_body_minimal_sends_max_tokens_and_omits_none_knobs():
+    messages = [{"role": "user", "content": "Hi"}]
+    assert build_message_body("m", messages, 64) == {
+        "model": "m",
+        "messages": messages,
+        "max_tokens": 64,
+    }
+
+
+def test_build_message_body_includes_set_knobs_and_merges_kwargs():
+    tools = [{"name": "get_weather", "input_schema": {"type": "object"}}]
+    body = build_message_body(
+        "m",
+        [{"role": "user", "content": "Hi"}],
+        128,
+        system="Be brief.",
+        temperature=0,
+        top_p=0.9,
+        tools=tools,
+        tool_choice={"type": "tool", "name": "get_weather"},
+        stop_sequences=["END"],
+    )
+    assert body == {
+        "model": "m",
+        "messages": [{"role": "user", "content": "Hi"}],
+        "max_tokens": 128,
+        "system": "Be brief.",
+        "temperature": 0,
+        "top_p": 0.9,
+        "tools": tools,
+        "tool_choice": {"type": "tool", "name": "get_weather"},
+        "stop_sequences": ["END"],
+    }
+
+
+def test_build_message_body_passes_system_blocks_through():
+    system = [{"type": "text", "text": "Be brief."}]
+    assert build_message_body("m", [], 8, system=system)["system"] is system
 
 
 def test_apply_arcana_fields_returns_new_dict_and_leaves_input_unmutated():

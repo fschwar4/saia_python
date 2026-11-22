@@ -3,7 +3,8 @@
 The SDK tests run the real OpenAI client over an ``httpx.MockTransport`` that
 answers with the recorded SAIA responses, so the helpers see exactly the
 objects the SDK hands to a caller (stream chunks are built without
-validation, e.g. with ``finish_reason=None``).
+validation, e.g. with ``finish_reason=None``). The Anthropic SDK is no
+dependency, so a stub with ``model_dump()`` stands in for its objects.
 """
 
 import asyncio
@@ -28,6 +29,14 @@ from ._generation_fixtures import (
     COMPLETION_N2_CHUNKS,
     COMPLETION_STREAM_LINES,
     COMPLETION_TEXT,
+    MESSAGE,
+    MESSAGE_MAX_TOKENS,
+    MESSAGE_REASONING,
+    MESSAGE_REASONING_STREAM_LINES,
+    MESSAGE_STREAM_LINES,
+    MESSAGE_TEXT,
+    MESSAGE_TOOL_USE,
+    MESSAGE_TOOL_USE_STREAM_LINES,
     RESPONSE,
     RESPONSE_INCOMPLETE,
     RESPONSE_REASONING,
@@ -247,7 +256,9 @@ def _logged(caplog):
 
 
 @pytest.mark.parametrize(
-    "response", [_CHAT_TOOL_CALL, _RESPONSE_TOOL_CALL], ids=["chat", "responses"]
+    "response",
+    [_CHAT_TOOL_CALL, _RESPONSE_TOOL_CALL, MESSAGE_TOOL_USE],
+    ids=["chat", "responses", "messages"],
 )
 def test_text_of_logs_a_tool_call_at_debug_only(caplog, response):
     with caplog.at_level(logging.DEBUG, logger="saia_python.responses"):
@@ -299,12 +310,25 @@ def test_text_of_names_every_tool_called(caplog):
             "junk",
         ],
     }
+    message = {
+        "type": "message",
+        "stop_reason": "tool_use",
+        "content": [
+            {"type": "thinking", "thinking": "…", "signature": "s"},
+            {"type": "tool_use", "id": "t1", "name": "get_weather", "input": {}},
+            {"type": "server_tool_use", "id": "t2", "name": "web_search"},
+            {"type": "tool_use", "id": "t3", "input": {}},  # no name
+            "junk",
+        ],
+    }
     with caplog.at_level(logging.DEBUG, logger="saia_python.responses"):
         text_of(chat)
         text_of(response)
+        text_of(message)
     assert [message for _, message in _logged(caplog)] == [
         "text_of: no text, the response calls get_weather, get_time, a tool",
         "text_of: no text, the response calls get_weather, web_search_call",
+        "text_of: no text, the response calls get_weather, web_search, tool_use",
     ]
 
 
@@ -312,11 +336,13 @@ def test_text_of_still_warns_about_a_truncated_tool_call(caplog):
     chat = json.loads(json.dumps(_CHAT_TOOL_CALL))
     chat["choices"][0]["finish_reason"] = "length"
     response = {**_RESPONSE_TOOL_CALL, "status": "incomplete"}
+    message = {**MESSAGE_TOOL_USE, "stop_reason": "max_tokens"}
     with caplog.at_level(logging.DEBUG, logger="saia_python.responses"):
-        assert text_of(chat) == text_of(response) == ""
+        assert text_of(chat) == text_of(response) == text_of(message) == ""
     assert _logged(caplog) == [
         ("WARNING", "text_of: first choice has empty content; finish_reason='length'"),
         ("WARNING", "text_of: response has no output text; status='incomplete'"),
+        ("WARNING", "text_of: message has no text; stop_reason='max_tokens'"),
     ]
 
 
@@ -766,6 +792,241 @@ def test_aiter_text_aclose_stops_reading_and_closes_the_stream():
 
     assert asyncio.run(_run()) == ("a", [])
     assert closed == [True]
+
+
+# --- the Messages API shape (Anthropic's format) ---------------------------------
+
+
+class _Dumped:
+    """Stands in for an Anthropic SDK object: a pydantic model with
+    ``model_dump()``."""
+
+    def __init__(self, data):
+        self._data = data
+
+    def model_dump(self):
+        return json.loads(json.dumps(self._data))
+
+
+def test_text_of_reads_a_messages_api_object():
+    assert text_of(MESSAGE) == MESSAGE_TEXT
+
+
+def test_text_of_skips_the_thinking_block():
+    assert text_of(MESSAGE_REASONING) == "4"
+
+
+def test_text_of_returns_the_partial_text_of_a_message_cut_off(caplog):
+    with caplog.at_level(logging.DEBUG, logger="saia_python.responses"):
+        assert text_of(MESSAGE_MAX_TOKENS) == "1, 2"
+    assert _logged(caplog) == []
+
+
+def test_text_of_joins_every_text_block_and_skips_the_rest():
+    message = {
+        "type": "message",
+        "content": [
+            {"type": "thinking", "thinking": "hmm", "signature": "s"},
+            {"type": "redacted_thinking", "data": "…"},
+            {"type": "text", "text": "Red, "},
+            {"type": "tool_use", "id": "t", "name": "get_weather", "input": {}},
+            {"type": "text", "text": None},
+            "junk",
+            {"type": "text", "text": "Blue"},
+        ],
+        "stop_reason": "end_turn",
+    }
+    assert text_of(message) == "Red, Blue"
+
+
+def test_text_of_warns_when_a_message_has_no_text(caplog):
+    message = {**MESSAGE, "content": [], "stop_reason": "end_turn"}
+    with caplog.at_level(logging.DEBUG, logger="saia_python.responses"):
+        assert text_of(message) == ""
+    assert _logged(caplog) == [
+        ("WARNING", "text_of: message has no text; stop_reason='end_turn'")
+    ]
+
+
+def test_text_of_and_usage_of_read_sdk_objects_with_model_dump():
+    assert text_of(_Dumped(MESSAGE_REASONING)) == "4"
+    assert usage_of(_Dumped(MESSAGE)) == {
+        "input_tokens": 27,
+        "output_tokens": 6,
+        "total_tokens": 33,
+    }
+
+
+def test_usage_of_reads_a_message_and_its_stream_events():
+    events = _parse(MESSAGE_STREAM_LINES)
+    start, delta, stop = events[0], events[-2], events[-1]
+    assert (start["type"], delta["type"], stop["type"]) == (
+        "message_start",
+        "message_delta",
+        "message_stop",
+    )
+    assert usage_of(MESSAGE)["total_tokens"] == 33
+    assert usage_of(start) == {
+        "input_tokens": 27,
+        "output_tokens": 0,
+        "total_tokens": 27,
+    }
+    assert usage_of(delta) == usage_of(MESSAGE)
+    assert usage_of(stop)["total_tokens"] is None  # the last event has none
+
+
+def test_iter_text_joins_a_messages_stream():
+    pieces = list(iter_text(_parse(MESSAGE_STREAM_LINES)))
+    assert pieces == ["Red", ",", " Green", ",", " Blue"]
+    assert "".join(pieces) == text_of(MESSAGE)
+
+
+def test_iter_text_skips_thinking_and_signature_deltas():
+    events = _parse(MESSAGE_REASONING_STREAM_LINES)
+    deltas = {e["delta"]["type"] for e in events if e["type"] == "content_block_delta"}
+    assert deltas == {"thinking_delta", "signature_delta", "text_delta"}
+    assert list(iter_text(events)) == ["4"]
+
+
+def test_iter_text_skips_the_arguments_of_a_streamed_tool_call():
+    events = _parse(MESSAGE_TOOL_USE_STREAM_LINES)
+    assert any(e.get("delta", {}).get("type") == "input_json_delta" for e in events)
+    assert list(iter_text(events)) == []
+
+
+def test_iter_text_skips_malformed_content_block_deltas():
+    events = [
+        {"type": "content_block_delta", "delta": "not a dict"},
+        {"type": "content_block_delta", "delta": {"type": "text_delta", "text": 7}},
+        {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "ok"}},
+    ]
+    assert list(iter_text(events)) == ["ok"]
+
+
+def test_iter_text_raises_on_a_messages_error_event():
+    events = [
+        {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "Re"}},
+        {
+            "type": "error",
+            "error": {"type": "overloaded_error", "message": "Overloaded"},
+        },
+    ]
+    pieces = []
+    with pytest.raises(APIError, match="Overloaded") as exc:
+        for piece in iter_text(events):
+            pieces.append(piece)
+    assert pieces == ["Re"]
+    assert exc.value.status_code is None
+
+
+def test_iter_text_reads_a_stream_of_sdk_event_objects():
+    events = [_Dumped(event) for event in _parse(MESSAGE_STREAM_LINES)]
+    text = iter_text(events)
+    assert "".join(text) == MESSAGE_TEXT
+    assert text.usage["total_tokens"] == 33
+    assert text.last is events[-1]  # as the stream gave it
+
+
+def test_aiter_text_joins_a_messages_stream():
+    async def _events():
+        for event in _parse(MESSAGE_REASONING_STREAM_LINES):
+            yield event
+
+    async def _run():
+        text = aiter_text(_events())
+        return "".join([piece async for piece in text]), text.usage
+
+    assert asyncio.run(_run()) == (
+        "4",
+        {"input_tokens": 43, "output_tokens": 19, "total_tokens": 62},
+    )
+
+
+# --- the iterator's usage --------------------------------------------------------
+
+_NO_USAGE = {"input_tokens": None, "output_tokens": None, "total_tokens": None}
+
+
+def test_usage_is_what_the_stream_has_reported_so_far():
+    text = iter_text(_parse(MESSAGE_STREAM_LINES))
+    assert text.usage == _NO_USAGE
+    assert next(text) == "Red"  # message_start has been read
+    assert text.usage == {"input_tokens": 27, "output_tokens": 0, "total_tokens": 27}
+    assert "".join(text) == ", Green, Blue"
+    assert text.usage == {"input_tokens": 27, "output_tokens": 6, "total_tokens": 33}
+
+
+def test_usage_equals_usage_of_the_last_chunk_on_the_other_routes():
+    usage_chunk = {
+        "object": "chat.completion.chunk",
+        "choices": [],
+        "usage": {"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7},
+    }
+    for chunks in (
+        [_chat_chunk("Hel"), _chat_chunk("lo"), usage_chunk],
+        _completion_chunks(),
+        _parse(RESPONSE_STREAM_LINES),
+        _parse(RESPONSE_REASONING_STREAM_LINES),
+    ):
+        text = iter_text(chunks)
+        list(text)
+        assert text.usage == usage_of(text.last)
+        assert text.usage["total_tokens"] is not None
+
+
+def test_usage_merges_the_counts_report_by_report():
+    # Anthropic's own API sends only the output tokens in message_delta.
+    events = [
+        {
+            "type": "message_start",
+            "message": {
+                "type": "message",
+                "content": [],
+                "usage": {"input_tokens": 10, "output_tokens": 1},
+            },
+        },
+        {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "Hi"}},
+        {
+            "type": "message_delta",
+            "delta": {"stop_reason": "end_turn"},
+            "usage": {"output_tokens": 7, "input_tokens": None},
+        },
+        {"type": "message_stop"},
+    ]
+    text = iter_text(events)
+    assert list(text) == ["Hi"]
+    assert text.usage == {"input_tokens": 10, "output_tokens": 7, "total_tokens": 17}
+
+
+def test_usage_takes_a_total_only_from_the_report_that_carries_it():
+    reports = [
+        {"choices": [], "usage": {"prompt_tokens": 5, "total_tokens": 5}},
+        {"choices": [], "usage": {"completion_tokens": 3}},
+    ]
+    text = iter_text(reports)
+    list(text)
+    assert text.usage == {"input_tokens": 5, "output_tokens": 3, "total_tokens": 8}
+
+
+def test_usage_ignores_counts_that_are_no_integers():
+    reports = [
+        {"choices": [], "usage": {"prompt_tokens": 4, "completion_tokens": 2}},
+        {"choices": [], "usage": {"prompt_tokens": True, "completion_tokens": "9"}},
+        {"choices": [], "usage": "junk"},
+    ]
+    text = iter_text(reports)
+    list(text)
+    assert text.usage == {"input_tokens": 4, "output_tokens": 2, "total_tokens": 6}
+
+
+def test_usage_keeps_the_counts_reported_before_an_error():
+    events = _parse(MESSAGE_STREAM_LINES)[:3] + [
+        {"type": "error", "error": {"type": "api_error", "message": "boom"}}
+    ]
+    text = iter_text(events)
+    with pytest.raises(APIError, match="boom"):
+        list(text)
+    assert text.usage == {"input_tokens": 27, "output_tokens": 0, "total_tokens": 27}
 
 
 # --- ARCANA answers: references=True ---------------------------------------------

@@ -1,9 +1,10 @@
 """Generation responses as SAIA sends them, shared by the tests.
 
-Recorded from the live gateway on 2026-11-20; only the request ids are
-replaced. The extra vLLM fields (``kv_transfer_params``, ``token_ids``, …) are
-kept on purpose, so the helpers are tested against the real shape rather than
-a minimal one; the few trimmed fixtures say so.
+Recorded from the live gateway on 2026-11-20, the ``/messages`` ones on
+2026-11-22; only the ids and the thinking signatures are replaced. The extra
+vLLM fields (``kv_transfer_params``, ``token_ids``, …) are kept on purpose, so
+the helpers are tested against the real shape rather than a minimal one; the
+few trimmed fixtures say so.
 """
 
 from __future__ import annotations
@@ -386,3 +387,215 @@ RESPONSE_INCOMPLETE = {
 #: An invalid parameter (``max_output_tokens=-1``) gets HTTP 400 before anything
 #: is streamed, with the same body as on ``/completions``.
 RESPONSE_400_BODY = COMPLETION_400_BODY
+
+
+# --- /messages -----------------------------------------------------------------
+
+#: A non-streaming ``/messages`` response (``qwen3-30b-a3b-instruct-2507``,
+#: ``system="Answer briefly."``, the question of :data:`RESPONSE`,
+#: ``max_tokens=16``, ``temperature=0``). The ids keep vLLM's ``chatcmpl-``
+#: prefix.
+MESSAGE = {
+    "id": "chatcmpl-test",
+    "type": "message",
+    "role": "assistant",
+    "content": [{"type": "text", "text": "Red, Green, Blue"}],
+    "model": "qwen3-30b-a3b-instruct-2507",
+    "stop_reason": "end_turn",
+    "usage": {"input_tokens": 27, "output_tokens": 6},
+}
+
+#: The same request streamed: ``event:`` and ``data:`` lines, every JSON with its
+#: own ``type``, and no ``[DONE]``. ``message_start`` carries the input tokens,
+#: ``message_delta`` the final counts, and the last event, ``message_stop``,
+#: nothing else.
+MESSAGE_STREAM_LINES = [
+    "event: message_start",
+    'data: {"type":"message_start","message":{"id":"chatcmpl-test","type":"message","role":"assistant","content":[],"model":"qwen3-30b-a3b-instruct-2507","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":27,"output_tokens":0}}}',
+    "",
+    "event: content_block_start",
+    'data: {"type":"content_block_start","content_block":{"type":"text","text":""},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Red"},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":","},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":" Green"},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":","},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":" Blue"},"index":0}',
+    "",
+    "event: content_block_stop",
+    'data: {"type":"content_block_stop","index":0}',
+    "",
+    "event: message_delta",
+    'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":27,"output_tokens":6}}',
+    "",
+    "event: message_stop",
+    'data: {"type":"message_stop"}',
+    "",
+]
+
+#: The text both add up to.
+MESSAGE_TEXT = "Red, Green, Blue"
+
+#: A reasoning model (``deepseek-v4.1-flash-1017``, ``"What is 2+2? Answer with
+#: the number only."``, ``max_tokens=512``, ``temperature=0``): a ``thinking``
+#: block, with its ``signature``, before the text.
+MESSAGE_REASONING = {
+    "id": "chatcmpl-test",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+        {
+            "type": "thinking",
+            "thinking": "We need answer only number. 2+2=4. Must comply.",
+            "signature": "signature-test",
+        },
+        {"type": "text", "text": "4"},
+    ],
+    "model": "deepseek-v4.1-flash-1017",
+    "stop_reason": "end_turn",
+    "usage": {"input_tokens": 43, "output_tokens": 19},
+}
+
+#: The same request streamed: ``thinking_delta`` and ``signature_delta`` events
+#: first, then the answer's ``text_delta``.
+MESSAGE_REASONING_STREAM_LINES = [
+    "event: message_start",
+    'data: {"type":"message_start","message":{"id":"chatcmpl-test","type":"message","role":"assistant","content":[],"model":"deepseek-v4.1-flash-1017","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":43,"output_tokens":0}}}',
+    "",
+    "event: content_block_start",
+    'data: {"type":"content_block_start","content_block":{"type":"thinking","thinking":""},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"We"},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":" need answer only number"},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"."},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":" 2+"},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"2=4. Must"},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":" comply"},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"."},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"signature_delta","signature":"signature-test"},"index":0}',
+    "",
+    "event: content_block_stop",
+    'data: {"type":"content_block_stop","index":0}',
+    "",
+    "event: content_block_start",
+    'data: {"type":"content_block_start","content_block":{"type":"text","text":""},"index":1}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"4"},"index":1}',
+    "",
+    "event: content_block_stop",
+    'data: {"type":"content_block_stop","index":1}',
+    "",
+    "event: message_delta",
+    'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":43,"output_tokens":19}}',
+    "",
+    "event: message_stop",
+    'data: {"type":"message_stop"}',
+    "",
+]
+
+#: A tool call instead of an answer (``qwen3-30b-a3b-instruct-2507``,
+#: ``tools=[get_weather]``, ``"What is the weather in Berlin?"``,
+#: ``max_tokens=128``, ``temperature=0``): a ``tool_use`` block and
+#: ``stop_reason: "tool_use"``.
+MESSAGE_TOOL_USE = {
+    "id": "chatcmpl-test",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+        {
+            "type": "tool_use",
+            "id": "chatcmpl-tool-test",
+            "name": "get_weather",
+            "input": {"city": "Berlin"},
+        }
+    ],
+    "model": "qwen3-30b-a3b-instruct-2507",
+    "stop_reason": "tool_use",
+    "usage": {"input_tokens": 155, "output_tokens": 20},
+}
+
+#: The same request streamed: the arguments arrive as ``input_json_delta``
+#: pieces.
+MESSAGE_TOOL_USE_STREAM_LINES = [
+    "event: message_start",
+    'data: {"type":"message_start","message":{"id":"chatcmpl-test","type":"message","role":"assistant","content":[],"model":"qwen3-30b-a3b-instruct-2507","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":155,"output_tokens":0}}}',
+    "",
+    "event: content_block_start",
+    'data: {"type":"content_block_start","content_block":{"type":"tool_use","id":"chatcmpl-tool-test","name":"get_weather","input":{}},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"input_json_delta","partial_json":"{\\""},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"input_json_delta","partial_json":"city"},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"input_json_delta","partial_json":"\\":"},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"input_json_delta","partial_json":" \\""},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"input_json_delta","partial_json":"Berlin"},"index":0}',
+    "",
+    "event: content_block_delta",
+    'data: {"type":"content_block_delta","delta":{"type":"input_json_delta","partial_json":"\\"}"},"index":0}',
+    "",
+    "event: content_block_stop",
+    'data: {"type":"content_block_stop","index":0}',
+    "",
+    "event: message_delta",
+    'data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"input_tokens":155,"output_tokens":20}}',
+    "",
+    "event: message_stop",
+    'data: {"type":"message_stop"}',
+    "",
+]
+
+#: ``max_tokens=4`` ran out (``"Count from 1 to 20, comma-separated."``):
+#: ``stop_reason: "max_tokens"`` with the partial text.
+MESSAGE_MAX_TOKENS = {
+    "id": "chatcmpl-test",
+    "type": "message",
+    "role": "assistant",
+    "content": [{"type": "text", "text": "1, 2"}],
+    "model": "qwen3-30b-a3b-instruct-2507",
+    "stop_reason": "max_tokens",
+    "usage": {"input_tokens": 20, "output_tokens": 4},
+}
+
+#: A call without ``max_tokens`` gets HTTP 400 with this body, in the same
+#: shape as on ``/completions``.
+MESSAGE_400_BODY = {
+    "error": {
+        "message": "1 validation error:\n  {'type': 'missing', 'loc': 'body.max_tokens', 'msg': 'Field required', 'input': '<dict of 2 items>'}",
+        "type": "Bad Request",
+        "param": "body.max_tokens",
+        "code": 400,
+    }
+}

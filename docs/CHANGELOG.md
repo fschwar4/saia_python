@@ -29,23 +29,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the text so far. `build_response_body()` builds the request body. The unit
   tests replay responses and streams recorded on 2026-11-20, a reasoning
   model's among them.
-- **One set of helpers for native results and OpenAI SDK objects.**
-  `text_of()` now also reads `text_completion` responses and Responses API
+- **Native `/messages` service (Anthropic's Messages format).**
+  `client.messages.create(model, messages, max_tokens, system=...)` and its
+  async twin use the same transport, without the Anthropic SDK; the OpenAI
+  SDK cannot send this format at all. As of 2026-11-22, GWDG's
+  documentation does not list the route, but it works (checked live that
+  day). `max_tokens` is a required argument, since SAIA answers 400 without
+  it. Seen on 2026-11-19: tool calling works (`tools` with an
+  `input_schema`; for structured output, force a tool with `tool_choice`),
+  `response_format` and the ARCANA fields are ignored, and reasoning models
+  send a `thinking` block before the answer. When `max_tokens` runs out,
+  `stop_reason` is `max_tokens` and the text so far comes back.
+  `build_message_body()` builds the request body. The unit tests replay
+  responses and streams recorded on 2026-11-22: a plain answer, a reasoning
+  model's, a tool call and an answer cut off by `max_tokens`.
+- **One set of helpers for native results and SDK objects.**
+  `text_of()` now also reads `text_completion` responses, Responses API
   objects (every `output_text` part of the message items, reasoning skipped,
-  like the SDK's `Response.output_text`), and takes an SDK object directly,
+  like the OpenAI SDK's `Response.output_text`) and Messages API objects
+  (every `text` block, `thinking` skipped), and takes an SDK object directly,
   without `.model_dump()`. The new `iter_text()` and `aiter_text()` yield the
-  text of a chat, completion or Responses stream, ours or the SDK's. They
-  keep to the first choice, skip reasoning, usage chunks and lifecycle
-  events, close the stream when done, and raise `APIError` when a chunk
-  reports an error (including the Responses API's `error` and
-  `response.failed` events) instead of ending as if the answer were
-  complete. The new `usage_of()` returns `input_tokens`, `output_tokens` and
-  `total_tokens`, whichever spelling the response uses; on a Responses
-  stream it reads the final `response.completed` event. The iterator that
-  `iter_text()` and `aiter_text()` return keeps the last chunk it read in
-  `.last`. SAIA sends a stream's token counts in that chunk on all three
-  routes (seen 2026-11-20), so `usage_of(text.last)` reads them once the
-  text has streamed.
+  text of a chat, completion, Responses or Messages stream, ours or an SDK's.
+  They keep to the first choice, skip reasoning and thinking, tool-call
+  arguments, usage chunks and lifecycle events, close the stream when done,
+  and raise `APIError` when a chunk reports an error (including the
+  Responses API's `error` and `response.failed` events and the Messages
+  API's `error` event) instead of ending as if the answer were complete. The
+  new `usage_of()` returns `input_tokens`, `output_tokens` and
+  `total_tokens`, whichever spelling the response uses; it also reads a
+  stream event that carries counts, such as a Responses stream's final
+  `response.completed`. The iterator that `iter_text()` and `aiter_text()`
+  return keeps the token counts the stream reports in `.usage`, so the text
+  can stream live and the counts are there once it is through. A chat,
+  completion or Responses stream reports them once, in its last chunk (seen
+  2026-11-20); a Messages stream reports the input tokens in
+  `message_start` and the final counts in `message_delta` (seen
+  2026-11-22). Each report gives the counts so far, so a later one replaces
+  an earlier one instead of being added. The iterator also keeps the last
+  chunk it read in `.last`.
 - **Streaming ARCANA answers, with anchors that resolve.**
   `iter_text(stream, references=True)` (and `aiter_text`) streams an ARCANA
   answer without GWDG's verbose `References:` block, and without the
@@ -106,9 +127,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   yet each one logged a warning (`first choice has empty content;
   finish_reason='tool_calls'`), which Python prints to stderr even without a
   logging setup. Now it logs `text_of: no text, the response calls
-  get_weather` at DEBUG, for chat and Responses API objects alike. A
-  truncated tool call (`finish_reason: "length"`, `status: "incomplete"`) and
-  every other empty answer keep the warning.
+  get_weather` at DEBUG, for chat, Responses API and Messages API objects
+  alike. A truncated tool call (`finish_reason: "length"`,
+  `status: "incomplete"`, `stop_reason: "max_tokens"`) and every other empty
+  answer keep the warning.
 
 ### Fixed
 
